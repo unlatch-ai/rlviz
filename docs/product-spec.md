@@ -2,10 +2,12 @@
 
 ## Product
 
-**Name:** RolloutViz  
-**npm package:** `rolloutviz`  
-**CLI:** `rolloutviz`  
-**Tagline:** Visualize and compare agent rollouts.
+| Field | Value |
+| --- | --- |
+| Name | RolloutViz |
+| npm package | `rolloutviz` |
+| CLI | `rolloutviz` |
+| Tagline | Visualize and compare agent rollouts. |
 
 ## Problem
 
