@@ -25,7 +25,9 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm --prefix web ci
       - run: make check
-      - run: go test -race ./...
+      # The boundary tests intentionally create 32-64 MiB records. Serialize
+      # packages so race instrumentation stays within hosted-runner memory.
+      - run: go test -race -p 1 ./...
       - run: git diff --exit-code -- web/dist
       - run: make build
       - name: Verify release targets compile
