@@ -1,28 +1,39 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/unlatch-ai/rolloutviz/internal/app"
+	"github.com/unlatch-ai/rolloutviz/internal/daemon"
+	"github.com/unlatch-ai/rolloutviz/internal/plugins"
 )
 
-const version = "0.0.0-dev"
+var version = "0.0.0-dev"
 
 type result struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 }
 
-type serveResult struct {
-	URL     string `json:"url"`
-	Path    string `json:"path"`
-	Command string `json:"command"`
-	Mode    string `json:"mode"`
+type openResult struct {
+	URL      string `json:"url"`
+	Path     string `json:"path"`
+	SourceID string `json:"source_id,omitempty"`
+	Command  string `json:"command"`
+	Mode     string `json:"mode"`
+	Started  bool   `json:"daemon_started,omitempty"`
 }
 
 func main() {
@@ -33,30 +44,44 @@ func main() {
 
 	switch command {
 	case "version":
-		flags := flag.NewFlagSet("version", flag.ExitOnError)
-		jsonOutput := flags.Bool("json", false, "print machine-readable output")
-		if err := flags.Parse(os.Args[2:]); err != nil {
-			os.Exit(2)
-		}
-		printVersion(*jsonOutput)
+		runVersion(os.Args[2:])
 	case "help", "-h", "--help":
 		printHelp()
-	case "open", "serve":
-		runViewer(command, os.Args[2:])
+	case "open":
+		runOpen(os.Args[2:])
+	case "serve":
+		runServe(os.Args[2:])
+	case "status":
+		runStatus(os.Args[2:])
+	case "stop":
+		runStop(os.Args[2:])
+	case "doctor":
+		runDoctor(os.Args[2:])
+	case "plugin":
+		runPlugin(os.Args[2:])
+	case "daemon":
+		runInternalDaemon(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", command)
 		os.Exit(2)
 	}
 }
 
-func runViewer(command string, arguments []string) {
-	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+func runVersion(arguments []string) {
+	flags := flag.NewFlagSet("version", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	printVersion(*jsonOutput)
+}
+
+func runOpen(arguments []string) {
+	flags := flag.NewFlagSet("open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	noOpen := flags.Bool("no-open", command == "serve", "do not open the browser")
-	port := flags.Int("port", 0, "loopback port (0 selects an available port)")
-	jsonOutput := flags.Bool("json", false, "print machine-readable startup output")
+	noOpen := flags.Bool("no-open", false, "do not open the browser")
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	adapter := flags.String("adapter", "", "trusted adapter plugin path")
 	flags.Usage = func() {
-		fmt.Fprintf(flags.Output(), "Usage: rlviz %s [--no-open] [--port PORT] [--json] PATH\n", command)
+		fmt.Fprintln(flags.Output(), "Usage: rlviz open [--no-open] [--json] [--adapter PATH] SOURCE")
 	}
 	if err := flags.Parse(normalizeViewerArguments(arguments)); err != nil {
 		os.Exit(2)
@@ -66,90 +91,408 @@ func runViewer(command string, arguments []string) {
 		os.Exit(2)
 	}
 
-	viewer, err := app.StartViewer(app.Viewer{SourcePath: flags.Arg(0), Port: *port})
+	paths, err := daemon.DefaultPaths()
 	if err != nil {
-		writeError(command, *jsonOutput, err)
-		os.Exit(1)
+		fatalError("open", *jsonOutput, err)
 	}
-	output := serveResult{URL: viewer.URL, Path: viewer.SourcePath, Command: command, Mode: "foreground"}
-	if *jsonOutput {
-		if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
-			fmt.Fprintf(os.Stderr, "encode startup output: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		fmt.Printf("RolloutViz is serving %s at %s (foreground; press Ctrl-C to stop)\n", output.Path, output.URL)
+	executable, err := os.Executable()
+	if err != nil {
+		fatalError("open", *jsonOutput, fmt.Errorf("locate rlviz executable: %w", err))
 	}
+	manager := daemon.Manager{
+		Paths: paths, Executable: executable,
+		Args: []string{"daemon", "serve", "--runtime-dir", paths.RuntimeDir}, Version: version,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	ensured, err := manager.Ensure(ctx)
+	if err != nil {
+		fatalError("open", *jsonOutput, err)
+	}
+	registered, err := (daemon.Client{}).Register(ctx, ensured.Metadata, daemon.RegisterRequest{Path: flags.Arg(0), Adapter: *adapter})
+	if err != nil {
+		fatalError("open", *jsonOutput, err)
+	}
+	viewerURL, err := resolveViewerURL(ensured.Metadata, registered.URL)
+	if err != nil {
+		fatalError("open", *jsonOutput, err)
+	}
+	output := openResult{
+		URL: viewerURL, Path: registered.Path, SourceID: registered.SourceID,
+		Command: "open", Mode: "daemon", Started: ensured.Started,
+	}
+	writeOutput(output, *jsonOutput, fmt.Sprintf("Opened %s at %s", output.Path, output.URL))
 	if !*noOpen {
+		if err := openBrowser(viewerURL); err != nil {
+			fmt.Fprintf(os.Stderr, "open browser: %v\n", err)
+		}
+	}
+}
+
+func runServe(arguments []string) {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	open := flags.Bool("open", false, "open the browser")
+	port := flags.Int("port", 0, "loopback port (0 selects an available port)")
+	jsonOutput := flags.Bool("json", false, "print machine-readable startup output")
+	adapter := flags.String("adapter", "", "trusted adapter plugin path")
+	flags.Usage = func() {
+		fmt.Fprintln(flags.Output(), "Usage: rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] SOURCE")
+	}
+	if err := flags.Parse(normalizeViewerArguments(arguments)); err != nil {
+		os.Exit(2)
+	}
+	if flags.NArg() != 1 {
+		flags.Usage()
+		os.Exit(2)
+	}
+
+	viewer, err := app.StartViewer(app.Viewer{SourcePath: flags.Arg(0), AdapterPath: *adapter, Port: *port})
+	if err != nil {
+		fatalError("serve", *jsonOutput, err)
+	}
+	output := openResult{URL: viewer.URL, Path: viewer.SourcePath, Command: "serve", Mode: "foreground"}
+	writeOutput(output, *jsonOutput, fmt.Sprintf("RolloutViz is serving %s at %s (foreground; press Ctrl-C to stop)", output.Path, output.URL))
+	if *open {
 		if err := openBrowser(viewer.URL); err != nil {
 			fmt.Fprintf(os.Stderr, "open browser: %v\n", err)
 		}
 	}
 	if err := viewer.Serve(); err != nil {
-		writeError(command, *jsonOutput, err)
-		os.Exit(1)
+		fatalError("serve", *jsonOutput, err)
 	}
 }
 
-// normalizeViewerArguments lets coding agents place flags before or after the
-// source path, while retaining flag.FlagSet's validation and error messages.
+func runStatus(arguments []string) {
+	flags := flag.NewFlagSet("status", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	paths, err := daemon.DefaultPaths()
+	if err != nil {
+		fatalError("status", *jsonOutput, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	metadata, err := daemon.LoadLiveMetadata(ctx, paths, daemon.Client{})
+	if err != nil {
+		if errors.Is(err, daemon.ErrNoMetadata) || errors.Is(err, daemon.ErrDaemonUnavailable) {
+			writeOutput(map[string]any{"status": "stopped"}, *jsonOutput, "RolloutViz daemon is stopped")
+			return
+		}
+		fatalError("status", *jsonOutput, err)
+	}
+	writeOutput(map[string]any{"status": "running", "pid": metadata.PID, "address": metadata.Address, "version": metadata.Version}, *jsonOutput, fmt.Sprintf("RolloutViz daemon is running at http://%s (pid %d)", metadata.Address, metadata.PID))
+}
+
+func runStop(arguments []string) {
+	flags := flag.NewFlagSet("stop", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	paths, err := daemon.DefaultPaths()
+	if err != nil {
+		fatalError("stop", *jsonOutput, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	metadata, err := daemon.LoadLiveMetadata(ctx, paths, daemon.Client{})
+	if errors.Is(err, daemon.ErrNoMetadata) || errors.Is(err, daemon.ErrDaemonUnavailable) {
+		writeOutput(map[string]string{"status": "stopped"}, *jsonOutput, "RolloutViz daemon is already stopped")
+		return
+	}
+	if err != nil {
+		fatalError("stop", *jsonOutput, err)
+	}
+	if err := (daemon.Client{}).Stop(ctx, metadata); err != nil {
+		fatalError("stop", *jsonOutput, err)
+	}
+	writeOutput(map[string]string{"status": "stopping"}, *jsonOutput, "RolloutViz daemon is stopping")
+}
+
+func runDoctor(arguments []string) {
+	flags := flag.NewFlagSet("doctor", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	paths, err := daemon.DefaultPaths()
+	if err != nil {
+		fatalError("doctor", *jsonOutput, err)
+	}
+	runtimeErr := paths.EnsureRuntimeDir()
+	checks := []map[string]any{{"name": "runtime_directory", "ok": runtimeErr == nil, "path": paths.RuntimeDir}}
+	_, pythonErr := exec.LookPath("python3")
+	checks = append(checks, map[string]any{"name": "python3", "ok": pythonErr == nil})
+	status := "ok"
+	human := "RolloutViz doctor: all checks passed"
+	if runtimeErr != nil || pythonErr != nil {
+		status = "degraded"
+		human = "RolloutViz doctor: one or more checks failed"
+	}
+	writeOutput(map[string]any{"status": status, "checks": checks}, *jsonOutput, human)
+}
+
+func runInternalDaemon(arguments []string) {
+	if len(arguments) == 0 || arguments[0] != "serve" {
+		fmt.Fprintln(os.Stderr, "internal daemon command requires serve")
+		os.Exit(2)
+	}
+	flags := flag.NewFlagSet("daemon serve", flag.ExitOnError)
+	runtimeDir := flags.String("runtime-dir", "", "daemon runtime directory")
+	_ = flags.Parse(arguments[1:])
+	paths, err := daemon.DefaultPaths()
+	if err != nil {
+		fatalError("daemon", false, err)
+	}
+	if *runtimeDir != "" {
+		paths = daemon.PathsAt(*runtimeDir)
+	}
+	if err := app.RunDaemon(paths, version); err != nil {
+		fatalError("daemon", false, err)
+	}
+}
+
+func runPlugin(arguments []string) {
+	if len(arguments) == 0 {
+		printPluginHelp()
+		return
+	}
+	switch arguments[0] {
+	case "init":
+		runPluginInit(arguments[1:])
+	case "trust":
+		runPluginTrust(arguments[1:])
+	case "validate":
+		runPluginValidate(arguments[1:])
+	case "list":
+		runPluginList(arguments[1:])
+	case "revoke":
+		runPluginRevoke(arguments[1:])
+	case "help", "-h", "--help":
+		printPluginHelp()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown plugin command %q\n", arguments[0])
+		os.Exit(2)
+	}
+}
+
+func runPluginInit(arguments []string) {
+	flags := flag.NewFlagSet("plugin init", flag.ExitOnError)
+	kind := flags.String("type", "adapter", "plugin type")
+	language := flags.String("lang", "python", "adapter language")
+	name := flags.String("name", "", "adapter name")
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	if flags.NArg() != 1 || *kind != "adapter" || *language != "python" {
+		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin init --type adapter --lang python [--name NAME] DIR")
+		os.Exit(2)
+	}
+	destination := flags.Arg(0)
+	pluginName := *name
+	if pluginName == "" {
+		pluginName = safePluginName(filepath.Base(filepath.Clean(destination)))
+	}
+	if err := plugins.ScaffoldPython(destination, plugins.ScaffoldOptions{Name: pluginName}); err != nil {
+		fatalError("plugin_init", *jsonOutput, err)
+	}
+	absolute, _ := filepath.Abs(destination)
+	writeOutput(map[string]any{"status": "created", "path": absolute, "name": pluginName}, *jsonOutput, fmt.Sprintf("Created Python adapter %s at %s", pluginName, absolute))
+}
+
+func runPluginTrust(arguments []string) {
+	flags := flag.NewFlagSet("plugin trust", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	if flags.NArg() != 1 {
+		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin trust [--json] DIR")
+		os.Exit(2)
+	}
+	plugin, err := plugins.Load(flags.Arg(0))
+	if err != nil {
+		fatalError("plugin_trust", *jsonOutput, err)
+	}
+	store, err := plugins.DefaultTrustStore()
+	if err != nil {
+		fatalError("plugin_trust", *jsonOutput, err)
+	}
+	if err := store.Trust(plugin); err != nil {
+		fatalError("plugin_trust", *jsonOutput, err)
+	}
+	writeOutput(map[string]any{"status": "trusted", "path": plugin.Path, "digest": plugin.Digest}, *jsonOutput, fmt.Sprintf("Trusted %s at digest %s", plugin.Path, plugin.Digest))
+}
+
+func runPluginValidate(arguments []string) {
+	flags := flag.NewFlagSet("plugin validate", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	if flags.NArg() != 2 {
+		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin validate [--json] DIR SOURCE")
+		os.Exit(2)
+	}
+	plugin, err := plugins.Load(flags.Arg(0))
+	if err != nil {
+		fatalError("plugin_validate", *jsonOutput, err)
+	}
+	store, err := plugins.DefaultTrustStore()
+	if err != nil {
+		fatalError("plugin_validate", *jsonOutput, err)
+	}
+	host := plugins.NewHost(store)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	report, err := host.ValidateAdapter(ctx, plugin, flags.Arg(1), "")
+	if err != nil {
+		fatalError("plugin_validate", *jsonOutput, err)
+	}
+	writeOutput(report, *jsonOutput, fmt.Sprintf("Validated %s: %d deterministic records (%s)", report.Plugin, report.Records, report.Format))
+}
+
+func runPluginList(arguments []string) {
+	flags := flag.NewFlagSet("plugin list", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	store, err := plugins.DefaultTrustStore()
+	if err != nil {
+		fatalError("plugin_list", *jsonOutput, err)
+	}
+	entries, err := store.List()
+	if err != nil {
+		fatalError("plugin_list", *jsonOutput, err)
+	}
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		lines = append(lines, fmt.Sprintf("%s  %s", entry.Digest, entry.Path))
+	}
+	human := "No trusted RolloutViz plugins"
+	if len(lines) > 0 {
+		human = strings.Join(lines, "\n")
+	}
+	writeOutput(map[string]any{"plugins": entries}, *jsonOutput, human)
+}
+
+func runPluginRevoke(arguments []string) {
+	flags := flag.NewFlagSet("plugin revoke", flag.ExitOnError)
+	jsonOutput := flags.Bool("json", false, "print machine-readable output")
+	_ = flags.Parse(arguments)
+	if flags.NArg() != 1 {
+		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin revoke [--json] DIR")
+		os.Exit(2)
+	}
+	store, err := plugins.DefaultTrustStore()
+	if err != nil {
+		fatalError("plugin_revoke", *jsonOutput, err)
+	}
+	if err := store.Revoke(flags.Arg(0)); err != nil {
+		fatalError("plugin_revoke", *jsonOutput, err)
+	}
+	absolute, _ := filepath.Abs(flags.Arg(0))
+	writeOutput(map[string]any{"status": "revoked", "path": absolute}, *jsonOutput, fmt.Sprintf("Revoked trust for %s", absolute))
+}
+
+func resolveViewerURL(metadata daemon.Metadata, value string) (string, error) {
+	base, _ := url.Parse("http://" + metadata.Address + "/")
+	reference, err := url.Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("parse viewer URL: %w", err)
+	}
+	resolved := base.ResolveReference(reference)
+	if resolved.Scheme != "http" || resolved.Host != metadata.Address {
+		return "", fmt.Errorf("daemon returned viewer URL outside its loopback origin")
+	}
+	resolved.Fragment = url.Values{"token": []string{metadata.Token}}.Encode()
+	return resolved.String(), nil
+}
+
 func normalizeViewerArguments(arguments []string) []string {
+	valueFlags := map[string]bool{"--port": true, "--adapter": true}
+	booleanFlags := map[string]bool{"--no-open": true, "--open": true, "--json": true}
 	flags := make([]string, 0, len(arguments))
 	paths := make([]string, 0, 1)
 	for index := 0; index < len(arguments); index++ {
 		argument := arguments[index]
-		switch argument {
-		case "--port":
+		if valueFlags[argument] {
 			flags = append(flags, argument)
 			if index+1 < len(arguments) {
 				index++
 				flags = append(flags, arguments[index])
 			}
-		case "--no-open", "--json":
+		} else if booleanFlags[argument] || strings.HasPrefix(argument, "--port=") || strings.HasPrefix(argument, "--adapter=") {
 			flags = append(flags, argument)
-		default:
-			if len(argument) > 2 && argument[:2] == "--" {
-				flags = append(flags, argument)
-			} else {
-				paths = append(paths, argument)
-			}
+		} else if strings.HasPrefix(argument, "--") {
+			flags = append(flags, argument)
+		} else {
+			paths = append(paths, argument)
 		}
 	}
 	return append(flags, paths...)
 }
 
-func writeError(command string, jsonOutput bool, err error) {
+func safePluginName(value string) string {
+	value = strings.ToLower(value)
+	value = regexp.MustCompile(`[^a-z0-9._-]+`).ReplaceAllString(value, "-")
+	value = strings.Trim(value, "-._")
+	if value == "" {
+		return "local-adapter"
+	}
+	return value
+}
+
+func writeOutput(value any, jsonOutput bool, human string) {
 	if jsonOutput {
-		_ = json.NewEncoder(os.Stderr).Encode(map[string]any{"code": command + "_failed", "error": err.Error()})
+		if err := json.NewEncoder(os.Stdout).Encode(value); err != nil {
+			fmt.Fprintf(os.Stderr, "encode output: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	fmt.Println(human)
+}
+
+func fatalError(command string, jsonOutput bool, err error) {
+	writeError(command, jsonOutput, err)
+	os.Exit(1)
+}
+
+func writeError(command string, jsonOutput bool, err error) {
+	code := command + "_failed"
+	details := map[string]any{"code": code, "error": err.Error()}
+	var apiError *daemon.APIError
+	var unsupported *app.UnsupportedFormatError
+	if errors.As(err, &apiError) {
+		for key, value := range apiError.Details {
+			details[key] = value
+		}
+		if apiError.Code != "" {
+			details["code"] = apiError.Code
+		}
+		details["error"] = apiError.Message
+	} else if errors.As(err, &unsupported) {
+		details["code"] = "unsupported_format"
+		details["path"] = unsupported.Path
+		details["suggested_command"] = "rlviz plugin init --type adapter --lang python .rolloutviz/plugins/local-adapter"
+	} else if errors.Is(err, plugins.ErrUntrusted) {
+		details["code"] = "plugin_untrusted"
+	}
+	if jsonOutput {
+		_ = json.NewEncoder(os.Stderr).Encode(details)
 		return
 	}
 	fmt.Fprintf(os.Stderr, "%s: %v\n", command, err)
 }
 
-func openBrowser(url string) error {
+func openBrowser(value string) error {
 	var command *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		command = exec.Command("open", url)
+		command = exec.Command("open", value)
 	case "windows":
-		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", value)
 	default:
-		command = exec.Command("xdg-open", url)
+		command = exec.Command("xdg-open", value)
 	}
 	return command.Start()
 }
 
 func printVersion(jsonOutput bool) {
 	value := result{Name: "rlviz", Version: version}
-	if jsonOutput {
-		if err := json.NewEncoder(os.Stdout).Encode(value); err != nil {
-			fmt.Fprintf(os.Stderr, "encode version output: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	fmt.Printf("rlviz %s\n", value.Version)
+	writeOutput(value, jsonOutput, fmt.Sprintf("rlviz %s", value.Version))
 }
 
 func printHelp() {
@@ -158,11 +501,25 @@ func printHelp() {
 Visualize and compare agent rollouts.
 
 Usage:
+  rlviz open [--no-open] [--json] [--adapter PATH] SOURCE
+  rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] SOURCE
+  rlviz status [--json]
+  rlviz stop [--json]
+  rlviz doctor [--json]
+  rlviz plugin <init|trust|validate|list|revoke>
   rlviz version [--json]
-  rlviz open [--no-open] [--port PORT] [--json] PATH
-  rlviz serve [--no-open] [--port PORT] [--json] PATH
   rlviz help
+`)
+}
 
-The open and serve commands run in the foreground in this initial release.
+func printPluginHelp() {
+	fmt.Print(`RolloutViz plugins
+
+Usage:
+  rlviz plugin init --type adapter --lang python [--name NAME] DIR
+  rlviz plugin trust [--json] DIR
+  rlviz plugin validate [--json] DIR SOURCE
+  rlviz plugin list [--json]
+  rlviz plugin revoke [--json] DIR
 `)
 }

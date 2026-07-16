@@ -86,7 +86,7 @@ rlviz open PATH
 Development and troubleshooting commands:
 
 ```bash
-rlviz serve --foreground
+rlviz serve PATH
 rlviz status
 rlviz stop
 rlviz doctor
@@ -118,13 +118,16 @@ The plugin protocol is public from its first release. Backward compatibility beg
 ## Security boundaries
 
 - The local server binds to loopback only.
-- A per-daemon secret protects mutation endpoints from unrelated local web pages.
+- A per-daemon secret protects source registration and trajectory reads from unrelated local processes and web pages. Browser viewer URLs carry it in the URL fragment, which is not sent in HTTP requests or referrers; the UI adds it as a bearer token.
 - Source registration resolves symlinks and records an allowed root.
 - Artifact reads cannot escape registered roots without explicit user approval.
 - HTML from traces is rendered as text or sanitized content, never trusted markup.
 - External plugins require explicit trust by path and content digest.
+- Trusted plugin code is copied into a private verified snapshot before execution, preventing edits to the project tree from racing execution.
 - Plugin stderr is captured for diagnostics; stdout remains protocol-only.
 - The viewer never re-executes recorded commands or tools.
+
+The current vertical slice keeps at most eight opened documents in memory and caps each canonical source or adapter output at 32 MiB. The SQLite streaming index replaces these temporary bounds in the next storage milestone.
 
 ## Performance approach
 

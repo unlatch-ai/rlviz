@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -46,6 +49,120 @@ func TestTrajectoryAPI(t *testing.T) {
 	}
 	if got.Trajectory.ID != "traj-1" || len(got.Events) != 1 {
 		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestDaemonSourceRegistrationRequiresTokenAndUsesStableURL(t *testing.T) {
+	registry := NewRegistry()
+	loader := func(_ context.Context, path, adapter string) (string, Document, error) {
+		return "/resolved/trace.ndjson", Document{Trajectory: &model.Trajectory{ID: "traj-registered"}}, nil
+	}
+	handler := NewRegistryHandler(registry, "secret", loader, nil)
+
+	unauthorized := httptest.NewRequest(http.MethodPost, "/api/v1/sources", bytes.NewBufferString(`{"path":"trace.ndjson"}`))
+	unauthorizedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(unauthorizedResponse, unauthorized)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d", unauthorizedResponse.Code)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sources", bytes.NewBufferString(`{"path":"trace.ndjson"}`))
+	request.Header.Set("Authorization", "Bearer secret")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var registration Registration
+	if err := json.NewDecoder(response.Body).Decode(&registration); err != nil {
+		t.Fatal(err)
+	}
+	if registration.SourceID != SourceID("/resolved/trace.ndjson\x00builtin:canonical") || registration.URL != "/?trajectory="+registration.SourceID {
+		t.Fatalf("registration = %#v", registration)
+	}
+
+	trajectoryRequest := httptest.NewRequest(http.MethodGet, "/api/v1/trajectory?trajectory="+registration.SourceID, nil)
+	trajectoryResponse := httptest.NewRecorder()
+	handler.ServeHTTP(trajectoryResponse, trajectoryRequest)
+	if trajectoryResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized trajectory status = %d", trajectoryResponse.Code)
+	}
+	trajectoryRequest = httptest.NewRequest(http.MethodGet, "/api/v1/trajectory?trajectory="+registration.SourceID, nil)
+	trajectoryRequest.Header.Set("Authorization", "Bearer secret")
+	trajectoryResponse = httptest.NewRecorder()
+	handler.ServeHTTP(trajectoryResponse, trajectoryRequest)
+	if trajectoryResponse.Code != http.StatusOK || !strings.Contains(trajectoryResponse.Body.String(), "traj-registered") {
+		t.Fatalf("trajectory status/body = %d %s", trajectoryResponse.Code, trajectoryResponse.Body.String())
+	}
+}
+
+func TestAdapterIdentityKeepsViewsSeparate(t *testing.T) {
+	registry := NewRegistry()
+	loader := func(_ context.Context, path, adapter string) (string, Document, error) {
+		return "/resolved/trace", Document{Trajectory: &model.Trajectory{ID: adapter}}, nil
+	}
+	handler := NewRegistryHandler(registry, "secret", loader, nil)
+	var ids []string
+	for _, adapter := range []string{"adapter-a", "adapter-b"} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/sources", bytes.NewBufferString(`{"path":"trace","adapter":"`+adapter+`"}`))
+		request.Header.Set("Authorization", "Bearer secret")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+		}
+		var registration Registration
+		if err := json.NewDecoder(response.Body).Decode(&registration); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, registration.SourceID)
+	}
+	if ids[0] == ids[1] || registry.Count() != 2 {
+		t.Fatalf("ids = %v count = %d", ids, registry.Count())
+	}
+}
+
+func TestRegistryEvictsLeastRecentlyUsedSources(t *testing.T) {
+	registry := NewRegistry()
+	for index := 0; index <= MaxRegisteredSources; index++ {
+		registry.Put(fmt.Sprintf("source-%d", index), Document{})
+	}
+	if registry.Count() != MaxRegisteredSources {
+		t.Fatalf("count = %d", registry.Count())
+	}
+	if _, ok := registry.Get(SourceID("source-0")); ok {
+		t.Fatal("oldest source was not evicted")
+	}
+}
+
+func TestLoadCanonicalNDJSONRejectsOversizedSource(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.ndjson")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(MaxCanonicalSourceBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadCanonicalNDJSON(path); err == nil || !strings.Contains(err.Error(), "maximum") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestDaemonSourceRegistrationRejectsTrailingJSON(t *testing.T) {
+	registry := NewRegistry()
+	handler := NewRegistryHandler(registry, "secret", func(_ context.Context, path, adapter string) (string, Document, error) {
+		return path, Document{}, nil
+	}, nil)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sources", bytes.NewBufferString(`{"path":"trace"} {"path":"other"}`))
+	request.Header.Set("Authorization", "Bearer secret")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 

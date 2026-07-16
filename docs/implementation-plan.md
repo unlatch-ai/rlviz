@@ -2,6 +2,10 @@
 
 The implementation is organized as vertical milestones. Each milestone should leave a usable, testable product rather than a collection of disconnected subsystems.
 
+## Current delivery
+
+The repository now contains the single-trajectory vertical slice, authenticated background daemon lifecycle, and the explicit external-adapter workflow. The daemon currently uses a bounded in-memory registry; automatic plugin discovery, SQLite streaming/indexing, large-file pagination, and file watching remain Milestone 2 work. Group schemas and fixtures exist, while the group and divergence interfaces remain Milestones 4 and 5.
+
 ## Milestone 0: contracts and fixtures
 
 ### Deliverables
@@ -166,8 +170,9 @@ The implementation is organized as vertical milestones. Each milestone should le
 6. Implement the trajectory timeline and inspector.
 7. Add keyboard navigation and artifact rendering.
 8. Add Playwright end-to-end coverage.
-9. Implement daemon lifecycle.
-10. Implement the external adapter host and Python scaffold.
+9. Implement the SQLite streaming index and paginated API.
+10. Build the rollout-group summary and selection interface.
+11. Add pair alignment and first-divergence navigation.
 
 ## Quality gates
 

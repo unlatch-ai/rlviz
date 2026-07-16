@@ -3,6 +3,15 @@ import type { Trajectory, TrajectoryResponse } from "./types";
 
 export interface LoadResult { trajectory: Trajectory; isSample: boolean; error?: string }
 
+export function trajectoryEndpoint(search = globalThis.location?.search ?? ""): string {
+  const id = new URLSearchParams(search).get("trajectory");
+  return id ? `/api/v1/trajectory?trajectory=${encodeURIComponent(id)}` : "/api/v1/trajectory";
+}
+
+export function daemonToken(hash = globalThis.location?.hash ?? ""): string | null {
+  return new URLSearchParams(hash.replace(/^#/, "")).get("token");
+}
+
 export function normalizeTrajectoryResponse(payload: TrajectoryResponse): Trajectory {
   if (payload.trajectory) {
     const events = (payload.events ?? payload.trajectory.events ?? []).map((event) => {
@@ -40,7 +49,10 @@ export function normalizeTrajectoryResponse(payload: TrajectoryResponse): Trajec
 
 export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> {
   try {
-    const response = await fetch("/api/v1/trajectory", { signal, headers: { Accept: "application/json" } });
+    const token = daemonToken();
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(trajectoryEndpoint(), { signal, headers });
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     const trajectory = normalizeTrajectoryResponse((await response.json()) as TrajectoryResponse);
     if (!trajectory.events.length) throw new Error("trajectory contains no events");

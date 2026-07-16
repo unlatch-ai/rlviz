@@ -1,0 +1,4 @@
+{"type":"message","role":"user","content":"Find the current weather for San Francisco."}
+{"type":"tool","name":"weather","arguments":{"city":"San Francisco"},"result":{"temperature_f":62,"conditions":"foggy"}}
+{"type":"message","role":"assistant","content":"It is 62°F and foggy in San Francisco."}
+{"type":"reward","value":1,"component":"task_complete"}

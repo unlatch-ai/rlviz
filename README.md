@@ -29,7 +29,20 @@ make build
 ./bin/rlviz open ./fixtures/canonical/linear.ndjson
 ```
 
-The current `open` and `serve` commands run in the foreground. Background daemon reuse and external adapters are the next implementation milestones.
+`rlviz open` starts or reuses a private loopback daemon and returns immediately. Use `rlviz status` and `rlviz stop` to inspect or stop it; `rlviz serve` remains the explicit foreground debugging mode.
+The current in-memory slice caps one canonical source or adapter output at 32 MiB; streaming indexes are the next storage milestone.
+
+Private formats can use project-local process adapters:
+
+```bash
+./bin/rlviz plugin init --type adapter --lang python .rolloutviz/plugins/customer-trace
+# Review the generated executable code before trusting it.
+./bin/rlviz plugin trust .rolloutviz/plugins/customer-trace
+./bin/rlviz plugin validate .rolloutviz/plugins/customer-trace ./path/to/trace
+./bin/rlviz open ./path/to/trace --adapter .rolloutviz/plugins/customer-trace
+```
+
+See [`docs/adapter-authoring.md`](docs/adapter-authoring.md) and the working [`simple-jsonl` example](examples/adapters/simple-jsonl).
 
 ## Design principles
 
@@ -46,6 +59,7 @@ The current `open` and `serve` commands run in the foreground. Background daemon
 - [`docs/architecture.md`](docs/architecture.md) defines the initial technical architecture.
 - [`docs/adapter-protocol.md`](docs/adapter-protocol.md) defines the external adapter boundary.
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) breaks the work into testable milestones.
+- [`integrations/`](integrations/) contains instructions for Codex, Claude Code, and Cursor.
 
 ## Development
 

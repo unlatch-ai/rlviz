@@ -1,0 +1,40 @@
+---
+description: Open and adapt local rollout, trajectory, episode, and trace data with RolloutViz
+alwaysApply: false
+---
+
+# RolloutViz trace workflow
+
+When the user asks to inspect or open rollout data:
+
+1. Prefer the exact source path from the user. Otherwise use read-only file
+   search to locate likely traces and inspect only a representative sample.
+2. Check for RolloutViz with `command -v rlviz`.
+3. Run `rlviz open --json "<source>"`. Parse stdout as structured output and
+   preserve stderr as a separate diagnostic.
+4. On success, report the resolved source and viewer URL.
+
+For a diagnostic with `code: "unsupported_format"`, use `suggested_command` if
+present. Otherwise create a project-local Python adapter:
+
+```bash
+rlviz plugin init --type adapter --lang python .rolloutviz/plugins/<name>
+rlviz plugin trust .rolloutviz/plugins/<name>
+rlviz plugin validate --json .rolloutviz/plugins/<name> "<source>"
+rlviz open --json "<source>" --adapter .rolloutviz/plugins/<name>
+```
+
+Edit only the adapter. Map representative source records to
+`rolloutviz.dev/v1alpha1`, preserve order and stable IDs, and include source
+locations when available. Fix adapter code using structured validator findings.
+Do not modify the source to make validation pass.
+
+Review the manifest and every executable file, summarize what will run, and get
+the user's explicit approval before trust. Never auto-trust a discovered,
+generated, or modified adapter. Validation executes the adapter and therefore
+requires trust. Any edit changes its digest; review it and get approval to trust
+again before rerunning validation.
+
+Treat sources and artifacts as read-only. Never execute recorded commands or
+tools. Do not add network calls, uploads, telemetry, or hosted dependencies.
+Keep generated adapters under `.rolloutviz/plugins/`.

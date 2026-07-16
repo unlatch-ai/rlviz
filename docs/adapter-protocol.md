@@ -6,7 +6,7 @@ Adapters translate source-specific trace formats into RolloutViz's canonical mod
 
 Coding agents can generate adapters by inspecting representative source records, implementing this protocol, and running the conformance validator.
 
-## Discovery
+## Planned discovery
 
 RolloutViz discovers adapters in this order:
 
@@ -16,7 +16,7 @@ RolloutViz discovers adapters in this order:
 4. `rolloutviz-adapter-*` executables on `PATH`
 5. Built-in adapters
 
-External plugins include a manifest:
+The current slice requires explicit `--adapter`. Automatic discovery will use this order. External plugins include a manifest:
 
 ```yaml
 api_version: rolloutviz.dev/v1alpha1
@@ -104,6 +104,7 @@ These fields enrich comparison but are not required for single-trajectory viewin
 ## Validation
 
 ```bash
+rlviz plugin trust ./plugins/customer-x
 rlviz plugin validate ./plugins/customer-x ./fixtures/sample.jsonl
 ```
 
@@ -124,5 +125,7 @@ The validator emits both concise human output and `--json` diagnostics suitable 
 ## Trust
 
 Adapters are executable code. RolloutViz records trust by absolute plugin path and content digest. A modified plugin must be trusted again before execution.
+
+Each execution uses a private snapshot whose digest must still match the approved code. Python bytecode and imported helpers are part of that digest. Adapter stdout is currently capped at 32 MiB and stderr at 1 MiB.
 
 Project repositories may commit adapter code and manifests, but opening the repository does not automatically trust them.

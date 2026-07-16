@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/unlatch-ai/rolloutviz/internal/daemon"
 	"github.com/unlatch-ai/rolloutviz/internal/server"
 )
 
 type Viewer struct {
-	SourcePath string
-	Port       int
+	SourcePath  string
+	AdapterPath string
+	Port        int
 }
 
 type RunningViewer struct {
@@ -25,11 +27,7 @@ type RunningViewer struct {
 // StartViewer validates and parses a source before opening a loopback listener.
 // The caller owns the returned server lifecycle.
 func StartViewer(config Viewer) (*RunningViewer, error) {
-	path, err := ValidateSource(config.SourcePath)
-	if err != nil {
-		return nil, err
-	}
-	document, err := server.LoadCanonicalNDJSON(path)
+	path, document, err := LoadSource(context.Background(), config.SourcePath, config.AdapterPath)
 	if err != nil {
 		return nil, err
 	}
@@ -37,12 +35,19 @@ func StartViewer(config Viewer) (*RunningViewer, error) {
 	if err != nil {
 		return nil, err
 	}
+	token, err := daemon.GenerateToken()
+	if err != nil {
+		listener.Close()
+		return nil, err
+	}
+	registry := server.NewRegistry()
+	id := registry.Put(path, document)
 	httpServer := &http.Server{
-		Handler:           server.NewHandler(document),
+		Handler:           server.NewRegistryHandler(registry, token, nil, nil),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	return &RunningViewer{
-		URL:        fmt.Sprintf("http://%s", listener.Addr().String()),
+		URL:        fmt.Sprintf("http://%s/?trajectory=%s#token=%s", listener.Addr().String(), id, token),
 		SourcePath: path,
 		Listener:   listener,
 		Server:     httpServer,

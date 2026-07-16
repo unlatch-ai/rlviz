@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTrajectoryResponse } from "./api";
+import { daemonToken, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
 
 describe("trajectory API normalization", () => {
+	it("uses the stable trajectory ID from the viewer URL", () => {
+		expect(trajectoryEndpoint("?trajectory=abc/123")).toBe("/api/v1/trajectory?trajectory=abc%2F123");
+		expect(trajectoryEndpoint("")).toBe("/api/v1/trajectory");
+	});
+
+	it("reads the daemon token from the URL fragment", () => {
+		expect(daemonToken("#token=abc%2F123")).toBe("abc/123");
+		expect(daemonToken("")).toBeNull();
+	});
+
   it("merges sibling events and canonical event data", () => {
     const trajectory = normalizeTrajectoryResponse({
       trajectory: { id: "traj-1", group_id: "group-1" },

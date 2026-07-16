@@ -1,0 +1,10 @@
+api_version: rolloutviz.dev/v1alpha1
+kind: Adapter
+name: simple-jsonl
+version: 0.1.0
+command:
+  - python3
+  - adapter.py
+capabilities:
+  - adapter.probe
+  - adapter.stream
