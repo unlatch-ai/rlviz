@@ -3,6 +3,7 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { loadAnalysis, loadChildPage, loadComparison, loadEventPage, loadGroup, loadGroupPaths, loadTrajectory } from "./api";
 import { ComparisonView } from "./ComparisonView";
+import { bindingLabel, commandDefinition, commandIds, useCommands, useKeymapRevision } from "./commands";
 import { duration, eventText, json, payload, preview, time, title } from "./format";
 import { GroupView } from "./GroupView";
 import { sampleTrajectory } from "./sample";
@@ -61,7 +62,7 @@ function TimelineCard({ event, selected, expanded, position, total, onSelect, on
             {hasIO ? <><div className="io-label">Input</div><Value value={event.input} /><div className="io-label">Output</div><Value value={event.output} /></> : <Value value={event.content} />}
           </div>
         ) : (payload(event) !== event && <pre className="preview">{preview(payload(event), 210)}</pre>)}
-        <button className="expand" onClick={(e) => { e.stopPropagation(); onExpand(); }} aria-label={`${expanded ? "Collapse" : "Expand"} event ${event.sequence}`}>{expanded ? "Collapse" : "Expand"} <kbd>Space</kbd></button>
+        <button className="expand" onClick={(e) => { e.stopPropagation(); onExpand(); }} aria-label={`${expanded ? "Collapse" : "Expand"} event ${event.sequence}`}>{expanded ? "Collapse" : "Expand"} <kbd>{bindingLabel(commandIds.trajectory.toggleExpanded)}</kbd></button>
       </div>
     </article>
   );
@@ -94,6 +95,7 @@ function Inspector({ event, raw, analysis, analysisLoading, analysisError, onRet
 }
 
 export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
+  useKeymapRevision();
   const [trajectory, setTrajectory] = useState(initialTrajectory || sampleTrajectory);
   const [isSample, setIsSample] = useState(!initialTrajectory);
   const [loading, setLoading] = useState(!initialTrajectory);
@@ -124,6 +126,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
   const timelineRef = useRef<HTMLElement>(null);
   const restoredView = useRef("");
   const sourceId = new URLSearchParams(globalThis.location?.search ?? "").get("trajectory") ?? "";
+  const isDemo = new URLSearchParams(globalThis.location?.search ?? "").get("demo") === "1";
 
   useEffect(() => {
     if (initialTrajectory && routeVersion === 0) return;
@@ -344,34 +347,27 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     finally { setGroupLoading(false); }
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-      if (event.key === "Escape") { setSearchOpen(false); setHelp(false); searchRef.current?.blur(); return; }
-      if (typing) return;
-      if (group) return;
-      if (event.key === "/") { event.preventDefault(); setSearchOpen(true); requestAnimationFrame(() => searchRef.current?.focus()); }
-      else if (event.key === "j") move(1);
-      else if (event.key === "k") move(-1);
-      else if (event.key === "e") move(1, (item) => item.kind === "error");
-      else if (event.key === "r") move(1, (item) => item.kind === "reward" || item.kind === "grader");
-      else if (event.key === "a") moveAnalysis();
-      else if (event.key === "o") moveArtifact();
-      else if (event.key === "x") setRaw((value) => !value);
-      else if (event.key === "g" && trajectory.group_id) void openGroup();
-      else if (event.key === "?") setHelp((value) => !value);
-      else if ((event.key === " " || event.key === "Enter") && selected) { event.preventDefault(); toggleExpand(selected.id); }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  useCommands("trajectory", {
+    [commandIds.trajectory.dismiss]: () => { setSearchOpen(false); setHelp(false); searchRef.current?.blur(); },
+    [commandIds.trajectory.search]: () => { setSearchOpen(true); requestAnimationFrame(() => searchRef.current?.focus()); },
+    [commandIds.trajectory.next]: () => move(1),
+    [commandIds.trajectory.previous]: () => move(-1),
+    [commandIds.trajectory.nextError]: () => move(1, (item) => item.kind === "error"),
+    [commandIds.trajectory.nextReward]: () => move(1, (item) => item.kind === "reward" || item.kind === "grader"),
+    [commandIds.trajectory.nextFinding]: moveAnalysis,
+    [commandIds.trajectory.nextArtifact]: moveArtifact,
+    [commandIds.trajectory.toggleRaw]: () => setRaw((value) => !value),
+    [commandIds.trajectory.openGroup]: () => trajectory.group_id ? void openGroup() : false,
+    [commandIds.trajectory.toggleHelp]: () => setHelp((value) => !value),
+    [commandIds.trajectory.toggleExpanded]: () => selected ? toggleExpand(selected.id) : false,
+  }, !group && !comparison);
 
   if (comparison) return <div className="app-shell group-shell comparison-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>comparison</strong></div></header>
+    <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>comparison</strong></div>{isDemo && <div className="top-actions"><span className="demo-pill">Synthetic demo</span></div>}</header>
     <ComparisonView comparison={comparison} initialStep={comparisonStep} onStepChange={(step) => { setComparisonStep(step); replaceParams((params) => params.set("step", String(step))); }} onClose={() => { setComparison(null); replaceParams((params) => { params.set("view", "group"); for (const key of ["left", "right", "step"]) params.delete(key); }); }} />
   </div>;
   if (group) return <div className="app-shell group-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>{group.group_id}</strong></div>{groupError && <div className="top-actions"><span className="group-error">{groupError}</span></div>}</header>
+    <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>{group.group_id}</strong></div>{(groupError || isDemo) && <div className="top-actions">{groupError && <span className="group-error">{groupError}</span>}{isDemo && <span className="demo-pill">Synthetic demo</span>}</div>}</header>
     <GroupView group={group} paths={groupPaths} pathsError={groupPathsError} onClose={() => { setGroup(null); replaceParams((params) => viewerKeys.forEach((key) => params.delete(key))); }} onOpen={openGroupTrajectory} onCompare={(left, right) => void openComparison(left, right)} />
   </div>;
   if (!selected) return <main className="empty">No events in this trajectory.</main>;
@@ -380,17 +376,17 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
       <header className="topbar">
         <div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div>
         <div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>{trajectory.name || trajectory.id}</strong></div>
-        <div className="top-actions">{groupError && <span className="group-error">{groupError}</span>}{indexSource?.index_state === "failed" && <span className="index-state failed" title={indexSource.index_error}>Index failed{indexSource.index_error ? `: ${indexSource.index_error}` : ""}</span>}{(indexSource?.index_state === "indexing" || indexSource?.index_state === "refreshing") && <span className="index-state"><i></i>{indexSource.index_state === "refreshing" ? "Refreshing" : "Indexing"}</span>}{loading && <span className="loading">Connecting…</span>}{isSample && !loading && <span className="demo-pill" title="The local API was unavailable">Sample data</span>}<button onClick={() => setHelp(true)} className="icon-button" aria-label="Keyboard shortcuts">?</button></div>
+        <div className="top-actions">{groupError && <span className="group-error">{groupError}</span>}{indexSource?.index_state === "failed" && <span className="index-state failed" title={indexSource.index_error}>Index failed{indexSource.index_error ? `: ${indexSource.index_error}` : ""}</span>}{(indexSource?.index_state === "indexing" || indexSource?.index_state === "refreshing") && <span className="index-state"><i></i>{indexSource.index_state === "refreshing" ? "Refreshing" : "Indexing"}</span>}{loading && <span className="loading">Connecting…</span>}{isDemo && <span className="demo-pill">Synthetic demo</span>}{isSample && !loading && <span className="demo-pill" title="The local API was unavailable">Sample data</span>}<button onClick={() => setHelp(true)} className="icon-button" aria-label="Keyboard shortcuts">?</button></div>
       </header>
       <div className="contextbar">
         <div className="status"><span className={`status-dot ${trajectory.status}`}></span>{trajectory.status || "complete"}</div>
         <div><span>MODEL</span>{trajectory.model || "—"}</div><div><span>EVENTS</span>{trajectory.events.length < eventTotal ? `${trajectory.events.length}/${eventTotal}` : eventTotal}</div><div><span>DURATION</span>{duration(trajectory.duration_ms)}</div><div><span>REWARD</span><strong className={(trajectory.total_reward || 0) < 0 ? "negative" : "positive"}>{trajectory.total_reward ?? "—"}</strong></div>
-        <div className="context-spacer"></div><div><span>CASE</span>{trajectory.case_id || "—"}</div><div><span>GROUP</span>{trajectory.group_id ? <button className="context-link" onClick={() => void openGroup()} disabled={groupLoading}>{groupLoading ? "loading…" : trajectory.group_id} <kbd>g</kbd></button> : "—"}</div>
+        <div className="context-spacer"></div><div><span>CASE</span>{trajectory.case_id || "—"}</div><div><span>GROUP</span>{trajectory.group_id ? <button className="context-link" onClick={() => void openGroup()} disabled={groupLoading}>{groupLoading ? "loading…" : trajectory.group_id} <kbd>{bindingLabel(commandIds.trajectory.openGroup)}</kbd></button> : "—"}</div>
       </div>
       <div className="workspace">
         <aside className="outline">
           <div className="panel-heading"><span>Events</span><span>{visible.length}/{trajectory.events.length}</span></div>
-          <div className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" aria-label="Search events" /><kbd>/</kbd></div>
+          <div className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" aria-label="Search events" /><kbd>{bindingLabel(commandIds.trajectory.search)}</kbd></div>
           <div className="filters">{filterKinds.filter((kind) => kind === "all" || counts[kind]).map((kind) => <button key={kind} className={filter === kind ? "active" : ""} onClick={() => setFilter(kind)}><span>{kind}</span><b>{kind === "all" ? trajectory.events.length : counts[kind]}</b></button>)}</div>
           <nav ref={outlineRef} className="event-outline" aria-label="Event outline">
             <VirtualList items={visible} estimateSize={47} overscan={6} selectedIndex={selectedVisibleIndex} scrollRef={outlineRef} className="outline-virtual" itemKey={eventKey} renderItem={(event, index) => <button className={selected.id === event.id ? "active" : ""} aria-current={selected.id === event.id ? "true" : undefined} aria-posinset={index + 1} aria-setsize={visible.length} onClick={() => selectEvent(event.id)}><Kind kind={event.kind} /><span className="outline-text"><b>{title(event)}</b><small>{event.kind} · {duration(event.duration_ms)}</small></span><span className="outline-seq">{event.sequence}</span></button>} />
@@ -403,8 +399,8 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
         </main>
         <Inspector event={selected} raw={raw} analysis={analysis} analysisLoading={analysisLoading} analysisError={analysisError} onRetryAnalysis={() => setAnalysisVersion((version) => version + 1)} onJump={jumpToEvent} artifacts={trajectory.artifacts ?? []} sourceId={sourceId} trajectoryId={trajectory.id} selectedArtifactId={selectedArtifactId} onSelectArtifact={selectArtifact} />
       </div>
-      <footer className="keybar"><span><kbd>j</kbd><kbd>k</kbd> navigate</span><span><kbd>↵</kbd>/<kbd>space</kbd> expand</span>{trajectory.group_id && <span><kbd>g</kbd> group</span>}{analysisEventIds.length > 0 && <span><kbd>a</kbd> finding</span>}{(trajectory.artifacts?.length ?? 0) > 0 && <span><kbd>o</kbd> artifact</span>}<span><kbd>e</kbd> error</span><span><kbd>r</kbd> reward</span><span><kbd>x</kbd> raw</span><span><kbd>?</kbd> shortcuts</span></footer>
-      {help && <div className="modal-backdrop" onMouseDown={() => setHelp(false)}><div className="help-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">Navigation</span><h2>Keyboard shortcuts</h2></div><button onClick={() => setHelp(false)} aria-label="Close shortcuts">×</button></header><div className="shortcut-grid">{[["j / k", "Next / previous event"], ["Enter / Space", "Expand selected event"], ["/", "Search events"], ["g", "Compare trajectory group"], ["a", "Jump through analyzer findings"], ["o", "Open next artifact"], ["e", "Jump to next error"], ["r", "Jump to next reward or grader"], ["x", "Toggle raw event record"], ["?", "Toggle this reference"], ["Esc", "Close search or dialog"]].map(([key, label]) => <div key={key}><kbd>{key}</kbd><span>{label}</span></div>)}</div></div></div>}
+      <footer className="keybar"><span><kbd>{bindingLabel(commandIds.trajectory.next)}</kbd><kbd>{bindingLabel(commandIds.trajectory.previous)}</kbd> navigate</span><span><kbd>{bindingLabel(commandIds.trajectory.toggleExpanded)}</kbd> expand</span>{trajectory.group_id && <span><kbd>{bindingLabel(commandIds.trajectory.openGroup)}</kbd> group</span>}{analysisEventIds.length > 0 && <span><kbd>{bindingLabel(commandIds.trajectory.nextFinding)}</kbd> finding</span>}{(trajectory.artifacts?.length ?? 0) > 0 && <span><kbd>{bindingLabel(commandIds.trajectory.nextArtifact)}</kbd> artifact</span>}<span><kbd>{bindingLabel(commandIds.trajectory.nextError)}</kbd> error</span><span><kbd>{bindingLabel(commandIds.trajectory.nextReward)}</kbd> reward</span><span><kbd>{bindingLabel(commandIds.trajectory.toggleRaw)}</kbd> raw</span><span><kbd>{bindingLabel(commandIds.trajectory.toggleHelp)}</kbd> shortcuts</span></footer>
+      {help && <div className="modal-backdrop" onMouseDown={() => setHelp(false)}><div className="help-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">Navigation</span><h2>Keyboard shortcuts</h2></div><button onClick={() => setHelp(false)} aria-label="Close shortcuts">×</button></header><div className="shortcut-grid">{Object.values(commandIds.trajectory).map((id) => <div key={id}><kbd>{bindingLabel(id)}</kbd><span>{commandDefinition(id).label}</span></div>)}</div></div></div>}
     </div>
   );
 }

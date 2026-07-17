@@ -50,5 +50,7 @@ Formats with private schemas, rapid internal churn, or customer-specific fields
 should remain adapters. Useful adapters may be published separately without
 expanding the core binary.
 
-The future `rlviz formats [--json]` command should generate its output from the
-actual decoder and plugin registry so this document and runtime cannot drift.
+`rlviz formats [--json]` generates its output from the built-in decoder and
+current trust store. It reports unavailable and digest-changed plugin entries
+without executing them. Future adapter discovery will extend the same result
+instead of creating a separate format registry.

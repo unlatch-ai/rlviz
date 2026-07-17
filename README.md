@@ -21,7 +21,15 @@ RLViz accepts canonical v1alpha1 NDJSON, validates and indexes it locally, start
 rlviz open ./path/to/trajectory.jsonl
 ```
 
-Build it and open the included fixture:
+Open the bundled synthetic research demo or inspect available built-in and
+trusted plugin formats:
+
+```bash
+rlviz demo
+rlviz formats
+```
+
+Build it and open a canonical fixture:
 
 ```bash
 make web-install

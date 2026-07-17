@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { commandIds, setCommandBindings } from "./commands";
 import { sampleTrajectory } from "./sample";
 import type { Trajectory } from "./types";
 
@@ -27,6 +28,30 @@ describe("trajectory navigation", () => {
     expect(screen.getByText("Task prompt", { selector: ".selected-heading h3" })).toBeInTheDocument();
   });
 
+  it("applies keymap changes immediately to behavior and rendered shortcut labels", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    });
+    render(<App initialTrajectory={sampleTrajectory} />);
+    const expand = screen.getAllByRole("button", { name: /Expand event/ })[0];
+    expect(expand).toHaveTextContent("Enter / Space");
+
+    act(() => {
+      setCommandBindings(commandIds.trajectory.toggleExpanded, ["z"]);
+      setCommandBindings(commandIds.trajectory.next, ["n"]);
+    });
+    expect(expand).toHaveTextContent("z");
+    expect(screen.getByText("n", { selector: ".keybar kbd" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "j" });
+    expect(screen.getByText("Task prompt", { selector: ".selected-heading h3" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "n" });
+    expect(screen.getByText("Assistant reasoning", { selector: ".selected-heading h3" })).toBeInTheDocument();
+  });
+
   it("restores and updates an event deep link without losing the auth fragment", () => {
     window.history.replaceState({}, "", "/?event=evt-003#token=secret");
     render(<App initialTrajectory={sampleTrajectory} />);
@@ -34,6 +59,16 @@ describe("trajectory navigation", () => {
     fireEvent.keyDown(window, { key: "j" });
     expect(new URLSearchParams(window.location.search).get("event")).toBe("evt-004");
     expect(window.location.hash).toBe("#token=secret");
+  });
+
+  it("labels the explicit bundled demo without treating normal fixtures as demo data", () => {
+    const normal = render(<App initialTrajectory={sampleTrajectory} />);
+    expect(screen.queryByText("Synthetic demo")).not.toBeInTheDocument();
+    normal.unmount();
+
+    window.history.replaceState({}, "", "/?demo=1");
+    render(<App initialTrajectory={sampleTrajectory} />);
+    expect(screen.getByText("Synthetic demo")).toBeInTheDocument();
   });
 
   it("jumps to errors and toggles raw JSON", () => {

@@ -12,7 +12,7 @@ install -> demo -> open real source -> inspect or adapt -> view
 Every human-readable command result should have a stable `--json` equivalent so
 Codex, Claude Code, Cursor, and other coding agents can operate the same flow.
 
-## Target command journey
+## Command journey
 
 ### 1. Verify the installation
 
@@ -74,6 +74,10 @@ rlviz inspect --json ./path/to/rollout
 - exact next command
 
 It never starts the viewer or mutates the source.
+
+`inspect` is the next onboarding command to implement. Until then, use
+`rlviz open --json SOURCE`; unsupported inputs already return a structured
+diagnostic without mutating the source.
 
 ### 5. Open it
 

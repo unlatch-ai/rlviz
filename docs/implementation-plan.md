@@ -182,8 +182,8 @@ Milestones 0–7 are implemented in the repository: versioned contracts and fixt
 
 ### Deliverables
 
-- Rich bundled `rlviz demo`
-- `rlviz formats [--json]`
+- Rich bundled `rlviz demo` (implemented)
+- `rlviz formats [--json]` (implemented)
 - Read-only `rlviz inspect SOURCE [--json]`
 - Safe agent-integration print/setup commands
 - Explicit supported-format documentation

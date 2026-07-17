@@ -49,6 +49,8 @@ func main() {
 		printHelp()
 	case "open":
 		runOpen(os.Args[2:])
+	case "demo":
+		runDemo(os.Args[2:])
 	case "serve":
 		runServe(os.Args[2:])
 	case "status":
@@ -57,6 +59,8 @@ func main() {
 		runStop(os.Args[2:])
 	case "doctor":
 		runDoctor(os.Args[2:])
+	case "formats":
+		runFormats(os.Args[2:])
 	case "cache":
 		runCache(os.Args[2:])
 	case "plugin":
@@ -93,42 +97,7 @@ func runOpen(arguments []string) {
 		os.Exit(2)
 	}
 
-	paths, err := daemon.DefaultPaths()
-	if err != nil {
-		fatalError("open", *jsonOutput, err)
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		fatalError("open", *jsonOutput, fmt.Errorf("locate rlviz executable: %w", err))
-	}
-	manager := daemon.Manager{
-		Paths: paths, Executable: executable,
-		Args: []string{"daemon", "serve", "--runtime-dir", paths.RuntimeDir}, Version: version,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	ensured, err := manager.Ensure(ctx)
-	if err != nil {
-		fatalError("open", *jsonOutput, err)
-	}
-	registered, err := (daemon.Client{}).Register(ctx, ensured.Metadata, daemon.RegisterRequest{Path: flags.Arg(0), Adapter: *adapter})
-	if err != nil {
-		fatalError("open", *jsonOutput, err)
-	}
-	viewerURL, err := resolveViewerURL(ensured.Metadata, registered.URL)
-	if err != nil {
-		fatalError("open", *jsonOutput, err)
-	}
-	output := openResult{
-		URL: viewerURL, Path: registered.Path, SourceID: registered.SourceID,
-		Command: "open", Mode: "daemon", Started: ensured.Started,
-	}
-	writeOutput(output, *jsonOutput, fmt.Sprintf("Opened %s at %s", output.Path, output.URL))
-	if !*noOpen {
-		if err := openBrowser(viewerURL); err != nil {
-			fmt.Fprintf(os.Stderr, "open browser: %v\n", err)
-		}
-	}
+	openSource(flags.Arg(0), *adapter, *noOpen, *jsonOutput, "open")
 }
 
 func runServe(arguments []string) {
@@ -669,11 +638,13 @@ func printHelp() {
 Visualize and compare agent rollouts.
 
 Usage:
+  rlviz demo [--no-open] [--json]
   rlviz open [--no-open] [--json] [--adapter PATH] SOURCE
   rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] SOURCE
   rlviz status [--json]
   rlviz stop [--json]
   rlviz doctor [--json]
+  rlviz formats [--json]
   rlviz cache <status|clean>
   rlviz plugin <init|trust|validate|list|revoke>
   rlviz version [--json]

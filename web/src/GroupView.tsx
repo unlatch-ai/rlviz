@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./commands";
 import type { GroupPathNode, GroupPathsResponse, GroupResponse, GroupTrajectorySummary, Trajectory } from "./types";
 
 type Scalar = string | number | boolean;
@@ -88,6 +89,7 @@ function displayLatency(value?: number): string {
 }
 
 export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare }: { group: GroupResponse; paths?: GroupPathsResponse | null; pathsError?: string; onClose: () => void; onOpen: (id: string) => void; onCompare?: (left: string, right: string) => void }) {
+  useKeymapRevision();
   const rows = useMemo(() => group.trajectories.map(rowFromSummary).filter((row) => row.id), [group]);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<string>("reward");
@@ -127,32 +129,33 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
     });
   }, [rows, query, sort, descending]);
 
+  const chooseSort = (key: string) => { if (sort === key) setDescending((value) => !value); else { setSort(key); setDescending(key !== "id"); } };
+  const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
+
   useEffect(() => setSelected((index) => Math.min(index, Math.max(visible.length - 1, 0))), [visible.length]);
   useEffect(() => setSelectedPath((index) => Math.min(index, Math.max(flatPaths.length - 1, 0))), [flatPaths.length]);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
+  useCommands("group", {
+    [commandIds.group.back]: (event) => {
       const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-      if (event.key === "Escape") { if (typing) { searchRef.current?.blur(); setQuery(""); } else onClose(); return; }
-      if (typing) return;
-      if (event.key === "p" && (paths || pathsError)) { event.preventDefault(); setMode((value) => value === "paths" ? "trajectories" : "paths"); return; }
-      if (mode === "paths") {
-        if (event.key === "j" || event.key === "ArrowDown") { event.preventDefault(); setSelectedPath((value) => flatPaths.length ? (value + 1) % flatPaths.length : 0); }
-        else if (event.key === "k" || event.key === "ArrowUp") { event.preventDefault(); setSelectedPath((value) => flatPaths.length ? (value - 1 + flatPaths.length) % flatPaths.length : 0); }
-        else if ((event.key === "o" || event.key === "Enter") && flatPaths[selectedPath]?.node.trajectory_ids[0]) { event.preventDefault(); onOpen(flatPaths[selectedPath].node.trajectory_ids[0]); }
-        return;
-      }
-      if (event.key === "/") { event.preventDefault(); searchRef.current?.focus(); }
-      else if (event.key === "j" || event.key === "ArrowDown") { event.preventDefault(); setSelected((value) => visible.length ? (value + 1) % visible.length : 0); }
-      else if (event.key === "k" || event.key === "ArrowUp") { event.preventDefault(); setSelected((value) => visible.length ? (value - 1 + visible.length) % visible.length : 0); }
-      else if ((event.key === "Enter" || event.key === "o") && visible[selected]) { event.preventDefault(); onOpen(visible[selected].id); }
-      else if ((event.key === " " || event.key === "c") && visible[selected]) { event.preventDefault(); toggleCompare(visible[selected].id); }
-      else if (event.key === "v" && compareIds.length === 2 && onCompare) { event.preventDefault(); onCompare(compareIds[0], compareIds[1]); }
-      else if (event.key === "b") { const best = visible.reduce((winner, row, index) => (row.reward ?? -Infinity) > (visible[winner]?.reward ?? -Infinity) ? index : winner, 0); setSelected(best); }
-      else if (event.key === "w") { const worst = visible.reduce((winner, row, index) => (row.reward ?? Infinity) < (visible[winner]?.reward ?? Infinity) ? index : winner, 0); setSelected(worst); }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [compareIds, flatPaths, mode, onClose, onCompare, onOpen, paths, pathsError, selected, selectedPath, visible]);
+      if (typing) { searchRef.current?.blur(); setQuery(""); } else onClose();
+    },
+    [commandIds.group.togglePaths]: () => (paths || pathsError) ? void setMode("paths") : false,
+    [commandIds.group.search]: () => searchRef.current?.focus(),
+    [commandIds.group.next]: () => setSelected((value) => visible.length ? (value + 1) % visible.length : 0),
+    [commandIds.group.previous]: () => setSelected((value) => visible.length ? (value - 1 + visible.length) % visible.length : 0),
+    [commandIds.group.open]: () => visible[selected] ? void onOpen(visible[selected].id) : false,
+    [commandIds.group.toggleCompare]: () => visible[selected] ? void toggleCompare(visible[selected].id) : false,
+    [commandIds.group.compare]: () => compareIds.length === 2 && onCompare ? void onCompare(compareIds[0], compareIds[1]) : false,
+    [commandIds.group.best]: () => { const best = visible.reduce((winner, row, index) => (row.reward ?? -Infinity) > (visible[winner]?.reward ?? -Infinity) ? index : winner, 0); setSelected(best); },
+    [commandIds.group.worst]: () => { const worst = visible.reduce((winner, row, index) => (row.reward ?? Infinity) < (visible[winner]?.reward ?? Infinity) ? index : winner, 0); setSelected(worst); },
+  }, mode === "trajectories");
+  useCommands("paths", {
+    [commandIds.paths.back]: onClose,
+    [commandIds.paths.togglePaths]: () => setMode("trajectories"),
+    [commandIds.paths.next]: () => setSelectedPath((value) => flatPaths.length ? (value + 1) % flatPaths.length : 0),
+    [commandIds.paths.previous]: () => setSelectedPath((value) => flatPaths.length ? (value - 1 + flatPaths.length) % flatPaths.length : 0),
+    [commandIds.paths.open]: () => flatPaths[selectedPath]?.node.trajectory_ids[0] ? void onOpen(flatPaths[selectedPath].node.trajectory_ids[0]) : false,
+  }, mode === "paths");
 
   const rewards = rows.map((row) => row.reward).filter((value): value is number => value !== undefined);
   const passed = rows.filter((row) => row.pass === true).length;
@@ -163,12 +166,10 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
     return counts;
   }, {})).sort((a, b) => b[1] - a[1]);
 
-  const chooseSort = (key: string) => { if (sort === key) setDescending((value) => !value); else { setSort(key); setDescending(key !== "id"); } };
-  const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
   return <main className="group-view" aria-label="Trajectory group">
     <header className="group-heading">
       <div><span className="eyebrow">Rollout group</span><h1>{group.group_id}</h1><p>{rows.length} trajectories · compare outcomes and open any run</p></div>
-      <div className="group-heading-actions">{(paths || pathsError) && <button className={mode === "paths" ? "active" : ""} onClick={() => setMode((value) => value === "paths" ? "trajectories" : "paths")}>{mode === "paths" ? "Trajectories" : "Behavioral paths"} <kbd>p</kbd></button>}<button onClick={onClose}>Back to trajectory <kbd>Esc</kbd></button></div>
+      <div className="group-heading-actions">{(paths || pathsError) && <button className={mode === "paths" ? "active" : ""} onClick={() => setMode((value) => value === "paths" ? "trajectories" : "paths")}>{mode === "paths" ? "Trajectories" : "Behavioral paths"} <kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd></button>}<button onClick={onClose}>Back to trajectory <kbd>{bindingLabel(mode === "paths" ? commandIds.paths.back : commandIds.group.back)}</kbd></button></div>
     </header>
     <section className="group-summary" aria-label="Group distribution">
       <div><span>REWARD MEAN</span><strong>{rewards.length ? displayNumber(rewards.reduce((sum, value) => sum + value, 0) / rewards.length) : "—"}</strong><small>{rewards.length ? `${displayNumber(Math.min(...rewards))}–${displayNumber(Math.max(...rewards))}` : "not reported"}</small></div>
@@ -186,7 +187,7 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
         {!flatPaths.length && <div className="group-empty">No behavioral events · {paths.tree.narrative_only_count} narrative-only trajectories</div>}
       </div> : <div className="group-empty">{pathsError || "Compact paths are still loading"}</div>}
     </section> : <section className="group-table-panel">
-      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter trajectories and signals" /><kbd>/</kbd></label><div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>v</kbd></button></div>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
+      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter trajectories and signals" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label><div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
       <div className="group-table-scroll">
         <table className="group-table"><thead><tr><th className="compare-check-heading">Compare</th><th className="trajectory-column"><button onClick={() => chooseSort("id")}>Trajectory {sort === "id" ? (descending ? "↓" : "↑") : ""}</button></th>{columns.map(({ key, label, signal }) => <th key={key} title={signal ? `Canonical signal: ${signal}` : undefined}><button onClick={() => chooseSort(key)}>{label} {sort === key ? (descending ? "↓" : "↑") : ""}</button></th>)}<th></th></tr></thead>
           <tbody>{visible.map((row, index) => <tr key={row.id} className={`${index === selected ? "selected" : ""} ${compareIds.includes(row.id) ? "compare-selected" : ""}`} aria-selected={index === selected} onClick={() => setSelected(index)} onDoubleClick={() => onOpen(row.id)}>
@@ -197,6 +198,6 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
         {!visible.length && <div className="group-empty">No matching trajectories</div>}
       </div>
     </section>}
-    <footer className="group-keybar"><span><kbd>p</kbd> {mode === "paths" ? "trajectories" : "paths"}</span><span><kbd>j</kbd><kbd>k</kbd> select</span>{mode === "paths" ? <><span><kbd>↵</kbd>/<kbd>o</kbd> open sample</span></> : <><span><kbd>space</kbd>/<kbd>c</kbd> mark</span><span><kbd>v</kbd> compare</span><span><kbd>b</kbd> best</span><span><kbd>w</kbd> worst</span><span><kbd>↵</kbd> open</span><span><kbd>/</kbd> filter</span></>}</footer>
+    <footer className="group-keybar"><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd> {mode === "paths" ? "trajectories" : "paths"}</span><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.next : commandIds.group.next)}</kbd><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.previous : commandIds.group.previous)}</kbd> select</span>{mode === "paths" ? <><span><kbd>{bindingLabel(commandIds.paths.open)}</kbd> open sample</span></> : <><span><kbd>{bindingLabel(commandIds.group.toggleCompare)}</kbd> mark</span><span><kbd>{bindingLabel(commandIds.group.compare)}</kbd> compare</span><span><kbd>{bindingLabel(commandIds.group.best)}</kbd> best</span><span><kbd>{bindingLabel(commandIds.group.worst)}</kbd> worst</span><span><kbd>{bindingLabel(commandIds.group.open)}</kbd> open</span><span><kbd>{bindingLabel(commandIds.group.search)}</kbd> filter</span></>}</footer>
   </main>;
 }

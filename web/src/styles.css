@@ -1,28 +1,108 @@
 :root {
-  color: #d8dee8;
-  background: #0a0c0f;
+  color: #dce2ea;
+  background: #090b0e;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
-  --bg: #0a0c0f;
-  --panel: #0f1216;
-  --panel-raised: #14181d;
-  --line: #252b33;
-  --muted: #788391;
-  --text: #d8dee8;
-  --bright: #f3f6f9;
-  --teal: #43d8b4;
-  --blue: #70a9ff;
-  --amber: #e9b75a;
-  --red: #ff6b76;
-  --purple: #ad8cff;
+
+  /* Primitive ramps. Components consume semantic aliases below. */
+  --neutral-0: #ffffff;
+  --neutral-50: #f4f7fa;
+  --neutral-100: #dce2ea;
+  --neutral-200: #c2cbd5;
+  --neutral-300: #a2adb9;
+  --neutral-400: #7f8b98;
+  --neutral-500: #606b77;
+  --neutral-600: #46505b;
+  --neutral-700: #303840;
+  --neutral-800: #22282f;
+  --neutral-850: #191e23;
+  --neutral-900: #12161a;
+  --neutral-925: #0d1114;
+  --neutral-950: #090b0e;
+  --accent-300: #8be6d0;
+  --accent-400: #54d4b5;
+  --accent-500: #2eb395;
+  --blue-400: #78adff;
+  --amber-400: #e8b968;
+  --red-400: #ff7580;
+  --purple-400: #b49cff;
+
+  /* Semantic colors. */
+  --surface-canvas: var(--neutral-950);
+  --surface-panel: var(--neutral-925);
+  --surface-raised: var(--neutral-900);
+  --surface-overlay: var(--neutral-850);
+  --border-subtle: var(--neutral-800);
+  --border-strong: var(--neutral-700);
+  --text-primary: var(--neutral-100);
+  --text-secondary: var(--neutral-300);
+  --text-muted: var(--neutral-400);
+  --text-faint: var(--neutral-500);
+  --text-inverse: var(--neutral-950);
+  --focus: var(--accent-300);
+  --selection: var(--accent-400);
+  --success: var(--accent-400);
+  --info: var(--blue-400);
+  --warning: var(--amber-400);
+  --danger: var(--red-400);
+  --context-change: var(--purple-400);
+
+  /* Type. Monospace is reserved for source and data. */
+  --font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* Spacing, shape, sizing, and motion. */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --control-sm: 28px;
+  --control-md: 34px;
+  --nav-width: clamp(224px, 17vw, 300px);
+  --inspector-width: clamp(288px, 23vw, 390px);
+  --content-measure: 960px;
+  --transition-fast: 100ms ease;
+
+  /* Compatibility aliases while existing components move to semantic tokens. */
+  --bg: var(--surface-canvas);
+  --panel: var(--surface-panel);
+  --panel-raised: var(--surface-raised);
+  --line: var(--border-subtle);
+  --muted: var(--text-muted);
+  --text: var(--text-primary);
+  --bright: var(--neutral-50);
+  --teal: var(--success);
+  --blue: var(--info);
+  --amber: var(--warning);
+  --red: var(--danger);
+  --purple: var(--context-change);
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { overflow: hidden; }
+body { overflow: hidden; color: var(--text-primary); background: var(--surface-canvas); font-family: var(--font-ui); font-size: var(--text-md); line-height: var(--leading-normal); }
 button, input { font: inherit; }
 button { color: inherit; }
-button:focus-visible, input:focus-visible { outline: 1px solid var(--teal); outline-offset: -1px; }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
 
 .app-shell { height: 100%; min-width: 920px; display: grid; grid-template-rows: 44px 44px minmax(0, 1fr) 29px; background: var(--bg); }
 .topbar { display: flex; align-items: center; border-bottom: 1px solid var(--line); background: #0d1013; padding: 0 14px; gap: 20px; }
@@ -55,7 +135,7 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--teal); outl
 .positive { color: var(--teal) !important; }
 .negative { color: var(--red) !important; }
 
-.workspace { display: grid; grid-template-columns: minmax(210px, 16.5vw) minmax(430px, 1fr) minmax(250px, 21vw); min-height: 0; }
+.workspace { display: grid; grid-template-columns: var(--nav-width) minmax(430px, 1fr) var(--inspector-width); min-height: 0; }
 .outline, .inspector, .timeline { min-height: 0; background: var(--panel); }
 .outline { display: flex; flex-direction: column; border-right: 1px solid var(--line); }
 .inspector { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
@@ -99,7 +179,7 @@ kbd { display: inline-block; min-width: 17px; padding: 1px 4px; border: 1px soli
 .legend i.signal { background: var(--amber); }
 .virtual-list { position: relative; }
 .virtual-row { position: absolute; top: 0; left: 0; width: 100%; }
-.timeline-events { position: relative; max-width: 940px; margin: 17px auto 80px; }
+.timeline-events { position: relative; max-width: var(--content-measure); margin: 17px auto 80px; }
 .timeline-events .virtual-row { padding: 0 22px 10px; }
 .timeline-events::before { content: ""; position: absolute; top: 0; bottom: 0; left: 40px; width: 1px; background: #273038; }
 .event-card { position: relative; display: grid; grid-template-columns: 39px minmax(0, 1fr); border: 1px solid #252b32; border-left: 2px solid #46505b; border-radius: 6px; background: #11151a; overflow: hidden; cursor: pointer; transition: border-color 100ms, background 100ms; }
