@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupView } from "./GroupView";
-import type { GroupPathsResponse, GroupResponse } from "./types";
+import { groupColumnLayoutStorageKey } from "./columnLayout";
+import type { GroupPathsResponse, GroupResponse, PresentationConfig } from "./types";
 
 export const mixedGroup: GroupResponse = {
   group_id: "group-eval-7",
@@ -33,6 +34,19 @@ const storage = {
   getItem: vi.fn((key: string) => storedValues.get(key) ?? null),
   setItem: vi.fn((key: string, value: string) => { storedValues.set(key, value); }),
   removeItem: vi.fn((key: string) => { storedValues.delete(key); }),
+};
+
+const presentation: PresentationConfig = {
+  api_version: "rlviz.dev/v1alpha1",
+  fields: {
+    reward: { label: "Return", description: "Sum of environment rewards." },
+    "signal:policy_reward": { label: "Policy score", description: "Policy grader score." },
+  },
+  scalars: {
+    reward: { format: "number", precision: 1, unit: "pts" },
+    "signal:policy_reward": { format: "percent_fraction", precision: 2 },
+  },
+  group: { columns: ["signal:policy_reward", "reward"] },
 };
 
 describe("trajectory group", () => {
@@ -72,6 +86,29 @@ describe("trajectory group", () => {
     fireEvent.change(screen.getByLabelText("Filter trajectories"), { target: { value: "rejected" } });
     expect(screen.getByText("attempt-bad")).toBeInTheDocument();
     expect(screen.queryByText("attempt-good")).not.toBeInTheDocument();
+  });
+
+  it("uses configured column order, labels, descriptions, and scalar formats", () => {
+    render(<GroupView group={mixedGroup} presentation={presentation} onClose={() => {}} onOpen={() => {}} />);
+    const policy = screen.getByRole("button", { name: /Policy score/ });
+    const reward = screen.getByRole("button", { name: /Return/ });
+    const headers = screen.getAllByRole("columnheader");
+    expect(headers.indexOf(policy.closest("th")!)).toBeLessThan(headers.indexOf(reward.closest("th")!));
+    expect(policy.closest("th")).toHaveAttribute("title", "Policy grader score.");
+    expect(reward.closest("th")).toHaveAttribute("title", "Sum of environment rewards.");
+    expect(screen.getByRole("row", { name: /attempt-good/ })).toHaveTextContent("65.00%");
+    expect(screen.getByRole("row", { name: /attempt-good/ })).toHaveTextContent("1.0 pts");
+    expect(screen.queryByRole("button", { name: /^Pass/ })).not.toBeInTheDocument();
+    expect(screen.getByText("RETURN MEAN")).toBeInTheDocument();
+  });
+
+  it("keeps a saved local layout ahead of configured defaults", () => {
+    storedValues.set(groupColumnLayoutStorageKey, JSON.stringify({ version: 1, hiddenBuiltins: ["reward"], signalNames: ["grader_label"] }));
+    render(<GroupView group={mixedGroup} presentation={presentation} onClose={() => {}} onOpen={() => {}} />);
+    expect(screen.queryByRole("button", { name: /Return/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Policy score/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Grader Label/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Pass/ })).toBeInTheDocument();
   });
 
   it("keeps case-variant canonical signals in canonical metric columns", () => {

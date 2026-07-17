@@ -34,3 +34,9 @@ analyzer input JSON file. Validation executes the trusted snapshot twice and
 requires byte-identical, schema- and runtime-valid output. See
 `docs/analyzer-protocol.md` for the execution and semantic constraints that
 JSON Schema cannot express across records or encoded byte lengths.
+
+`presentation-config.schema.json` defines the separate, non-executable viewer
+customization contract. Presentation files are strict, bounded JSON and never
+grant plugin trust or permission to inject HTML, CSS, JavaScript, selectors,
+URLs, or arbitrary inspector templates. Runtime validation additionally checks
+semantic color contrast, which JSON Schema alone cannot express.

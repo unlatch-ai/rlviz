@@ -65,14 +65,15 @@ operate the CLI and can author project-local adapters; RLViz remains the viewer.
 
 ```text
 rlviz open SOURCE
-  1. resolve the source path without modifying it
-  2. load or start the per-user daemon
-  3. send an authenticated registration request
-  4. choose the canonical decoder or an explicitly trusted adapter
-  5. validate and commit the first bounded record batch
-  6. return an authenticated viewer URL
-  7. continue indexing and watching in the daemon
-  8. open the browser and let the CLI exit promptly
+  1. validate and normalize an explicit presentation file, if supplied
+  2. resolve the source path without modifying it
+  3. load or start the per-user daemon
+  4. send an authenticated registration request
+  5. independently validate presentation input and choose the decoder
+  6. validate and commit the first bounded record batch
+  7. store normalized presentation separately from source content
+  8. return an authenticated viewer URL and continue watching
+  9. open the browser and let the CLI exit promptly
 ```
 
 The daemon records `indexing`, `complete`, `refreshing`, or `failed`. An initial
@@ -80,6 +81,11 @@ source becomes visible after a valid header and first event batch. A refresh
 keeps the prior valid generation queryable until its replacement validates and
 commits atomically. Invalid or cancelled refreshes never replace known-good
 data.
+
+Presentation configuration is stored in a dedicated SQLite table keyed by
+source ID, without participating in the source fingerprint. Canonical source
+replacement therefore preserves presentation across refreshes and daemon
+restarts; explicit registration without a presentation deletes the prior row.
 
 ### Read in the browser
 
@@ -178,6 +184,7 @@ Quality budgets and representative fixture requirements live in `testing.md`.
 | CLI or machine output | `onboarding.md`, public command docs | `cmd/rlviz`, command tests |
 | Canonical semantics | `data-model.md`, protocol docs | model, schemas, fixtures, index, API, UI |
 | Adapter/analyzer behavior | `plugin-model.md`, relevant protocol | plugins, schemas, fixtures, conformance tests |
+| Context lifecycle or usage | `context-semantics.md`, `data-model.md` | model, schemas, fixtures, index, API, UI |
 | Viewer behavior | `ui-information-architecture.md`, `design-system.md` | `web/src`, API only when required |
 | Daemon or cache | ADR 0001/0003, this document | daemon, app, index, server |
 | Release/install | `releasing.md` | workflows, package, formula, scripts |

@@ -13,8 +13,8 @@ func TestSchemaDocumentsAreValidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) != 6 {
-		t.Fatalf("found %d schema documents, want 6", len(paths))
+	if len(paths) != 7 {
+		t.Fatalf("found %d schema documents, want 7", len(paths))
 	}
 	for _, path := range paths {
 		path := path

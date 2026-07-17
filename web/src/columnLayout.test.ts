@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { defaultGroupColumnLayout, groupColumnLayoutStorageKey, loadGroupColumnLayout, resetGroupColumnLayout, saveGroupColumnLayout } from "./columnLayout";
+import { defaultGroupColumnLayout, groupColumnLayoutStorageKey, loadGroupColumnLayout, loadStoredGroupColumnLayout, resetGroupColumnLayout, saveGroupColumnLayout } from "./columnLayout";
 
 describe("group column layout persistence", () => {
   it("round trips a bounded versioned layout", () => {
@@ -26,5 +26,10 @@ describe("group column layout persistence", () => {
     const removeItem = vi.fn();
     resetGroupColumnLayout({ removeItem });
     expect(removeItem).toHaveBeenCalledWith(groupColumnLayoutStorageKey);
+  });
+
+  it("distinguishes no saved preference from the built-in default", () => {
+    expect(loadStoredGroupColumnLayout({ getItem: () => null })).toBeNull();
+    expect(loadGroupColumnLayout({ getItem: () => null })).toEqual(defaultGroupColumnLayout);
   });
 });

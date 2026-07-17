@@ -29,6 +29,10 @@ Candidate concepts:
 - final answer and termination provenance
 - source-native versus adapter-derived versus analyzer-inferred status
 
+The evidence gate and smallest candidate context contract are specified in
+`context-semantics.md`. Do not implement a context-usage track from the
+synthetic compaction fixture alone.
+
 ## Modeling rules
 
 - Preserve the ordered raw event stream even when the UI groups turns or spans.

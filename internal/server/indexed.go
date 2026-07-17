@@ -35,6 +35,10 @@ type IndexedReader interface {
 	LoopRetryAnalysis(context.Context, string, string) (rolloutindex.AnalysisResult, error)
 }
 
+type indexedPresentationReader interface {
+	Presentation(context.Context, string) (json.RawMessage, error)
+}
+
 type pageMetadata struct {
 	Count         int    `json:"count"`
 	Total         int64  `json:"total"`
@@ -148,6 +152,14 @@ func (api *indexedAPI) trajectory(response http.ResponseWriter, request *http.Re
 		api.writeReadError(response, "index_query_failed", err)
 		return
 	}
+	var presentationConfig json.RawMessage
+	if reader, ok := api.reader.(indexedPresentationReader); ok {
+		presentationConfig, err = reader.Presentation(request.Context(), params.sourceID)
+		if err != nil {
+			api.writeReadError(response, "index_query_failed", err)
+			return
+		}
+	}
 	rawBytes := events.RawBytes + signals.RawBytes + artifacts.RawBytes
 	if rawBytes > MaxTrajectoryRawBytes {
 		writeJSONError(response, http.StatusRequestEntityTooLarge, "trajectory_too_large", fmt.Errorf("trajectory page is %d raw bytes; maximum is %d", rawBytes, MaxTrajectoryRawBytes))
@@ -160,6 +172,7 @@ func (api *indexedAPI) trajectory(response http.ResponseWriter, request *http.Re
 		"case":             ctx.Case.Value,
 		"group":            ctx.Group.Value,
 		"trajectory":       ctx.Trajectory.Value,
+		"presentation":     presentationConfig,
 		"events":           canonicalEvents(events.Events),
 		"event_provenance": eventProvenance(events.Events),
 		"signals":          canonicalSignals(signals.Items),

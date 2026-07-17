@@ -1,7 +1,7 @@
 import { sampleTrajectory } from "./sample";
-import type { AnalysisResponse, ComparisonResponse, EventPageResponse, GroupPathsResponse, GroupResponse, IndexedSource, PageMetadata, Trajectory, TrajectoryArtifact, TrajectoryEvent, TrajectoryResponse, TrajectorySignal } from "./types";
+import type { AnalysisResponse, ComparisonResponse, EventPageResponse, GroupPathsResponse, GroupResponse, IndexedSource, PageMetadata, PresentationConfig, Trajectory, TrajectoryArtifact, TrajectoryEvent, TrajectoryResponse, TrajectorySignal } from "./types";
 
-export interface LoadResult { trajectory: Trajectory; isSample: boolean; page?: PageMetadata; signalPage?: PageMetadata; artifactPage?: PageMetadata; source?: IndexedSource; error?: string }
+export interface LoadResult { trajectory: Trajectory; isSample: boolean; page?: PageMetadata; signalPage?: PageMetadata; artifactPage?: PageMetadata; source?: IndexedSource; presentation?: PresentationConfig; error?: string }
 
 export function trajectoryEndpoint(search = globalThis.location?.search ?? ""): string {
   const params = new URLSearchParams(search);
@@ -75,7 +75,7 @@ export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> 
     const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
     const trajectory = normalizeTrajectoryResponse(payload);
     if (!trajectory.events.length) throw new Error("trajectory contains no events");
-    return { trajectory, isSample: false, page: payload.page, signalPage: payload.signal_page, artifactPage: payload.artifact_page, source: payload.source };
+    return { trajectory, isSample: false, page: payload.page, signalPage: payload.signal_page, artifactPage: payload.artifact_page, source: payload.source, presentation: payload.presentation };
   } catch (error) {
     if (signal?.aborted) throw error;
     return { trajectory: sampleTrajectory, isSample: true, error: error instanceof Error ? error.message : "API unavailable" };

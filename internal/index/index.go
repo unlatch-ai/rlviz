@@ -75,7 +75,7 @@ func (i *Index) migrate(ctx context.Context) error {
 			}
 		}
 	}
-	if _, err := i.db.ExecContext(ctx, `PRAGMA user_version=3`); err != nil {
+	if _, err := i.db.ExecContext(ctx, `PRAGMA user_version=4`); err != nil {
 		return err
 	}
 	return nil

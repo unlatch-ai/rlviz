@@ -39,6 +39,9 @@ func testIndexedHandler(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := store.SetPresentation(t.Context(), "source-group", json.RawMessage(`{"api_version":"rlviz.dev/v1alpha1","fields":{"reward":{"label":"Return"}}}`)); err != nil {
+		t.Fatal(err)
+	}
 	return NewIndexedHandler(store, "secret")
 }
 
@@ -73,6 +76,17 @@ func TestIndexedReadsRequireAuthentication(t *testing.T) {
 	}
 	if code := decodeIndexedResponse(t, response)["code"]; code != "unauthorized" {
 		t.Fatalf("code = %v", code)
+	}
+}
+
+func TestIndexedTrajectoryReturnsSourcePresentation(t *testing.T) {
+	response := indexedRequest(t, testIndexedHandler(t), http.MethodGet, "/api/v1/indexed/trajectory?trajectory=source-group", true)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	presentation, ok := decodeIndexedResponse(t, response)["presentation"].(map[string]any)
+	if !ok || presentation["api_version"] != "rlviz.dev/v1alpha1" {
+		t.Fatalf("presentation=%#v", presentation)
 	}
 }
 

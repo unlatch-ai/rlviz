@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/unlatch-ai/rlviz/internal/presentation"
 	webassets "github.com/unlatch-ai/rlviz/web"
 )
 
@@ -25,13 +26,14 @@ const fallbackUI = `<!doctype html>
 const MaxCanonicalSourceBytes int64 = 32 << 20
 
 type Document struct {
-	Trajectory *model.Trajectory `json:"trajectory"`
-	Events     []*model.Event    `json:"events"`
-	Run        *model.Run        `json:"run,omitempty"`
-	Case       *model.Case       `json:"case,omitempty"`
-	Group      *model.Group      `json:"group,omitempty"`
-	Signals    []*model.Signal   `json:"signals,omitempty"`
-	Artifacts  []*model.Artifact `json:"artifacts,omitempty"`
+	Trajectory   *model.Trajectory `json:"trajectory"`
+	Events       []*model.Event    `json:"events"`
+	Run          *model.Run        `json:"run,omitempty"`
+	Case         *model.Case       `json:"case,omitempty"`
+	Group        *model.Group      `json:"group,omitempty"`
+	Signals      []*model.Signal   `json:"signals,omitempty"`
+	Artifacts    []*model.Artifact `json:"artifacts,omitempty"`
+	Presentation json.RawMessage   `json:"presentation"`
 }
 
 type SourceLoader func(ctx context.Context, path, adapter string) (resolvedPath string, document Document, err error)
@@ -211,8 +213,9 @@ func NewRegistryHandler(registry *Registry, token string, loader SourceLoader, s
 		decoder := json.NewDecoder(request.Body)
 		decoder.DisallowUnknownFields()
 		var input struct {
-			Path    string `json:"path"`
-			Adapter string `json:"adapter,omitempty"`
+			Path         string          `json:"path"`
+			Adapter      string          `json:"adapter,omitempty"`
+			Presentation json.RawMessage `json:"presentation"`
 		}
 		if err := decoder.Decode(&input); err != nil {
 			writeJSONError(response, http.StatusBadRequest, "invalid_request", err)
@@ -225,11 +228,17 @@ func NewRegistryHandler(registry *Registry, token string, loader SourceLoader, s
 			writeJSONError(response, http.StatusBadRequest, "invalid_request", err)
 			return
 		}
+		normalizedPresentation, err := presentation.NormalizeJSON(input.Presentation)
+		if err != nil {
+			writeJSONError(response, http.StatusBadRequest, "invalid_presentation", err)
+			return
+		}
 		resolved, document, err := loader(request.Context(), input.Path, input.Adapter)
 		if err != nil {
 			writeSourceError(response, err)
 			return
 		}
+		document.Presentation = normalizedPresentation
 		identity := resolved + "\x00builtin:canonical"
 		if input.Adapter != "" {
 			adapter, resolveErr := filepath.Abs(input.Adapter)

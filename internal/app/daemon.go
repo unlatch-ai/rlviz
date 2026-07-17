@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -50,7 +51,7 @@ func RunDaemon(paths daemon.Paths, version string) error {
 			_ = httpServer.Shutdown(ctx)
 		}
 	}
-	registrar := func(ctx context.Context, path, adapter string) (server.Registration, error) {
+	registrar := func(ctx context.Context, path, adapter string, presentationConfig json.RawMessage) (server.Registration, error) {
 		indexed, err := sourceIndexer.Index(ctx, path, adapter)
 		if err != nil {
 			return server.Registration{}, err
@@ -64,6 +65,9 @@ func RunDaemon(paths daemon.Paths, version string) error {
 			return refreshErr
 		}); err != nil {
 			return server.Registration{}, fmt.Errorf("watch source: %w", err)
+		}
+		if err := store.SetPresentation(ctx, source.ID, presentationConfig); err != nil {
+			return server.Registration{}, err
 		}
 		return server.Registration{
 			SourceID: source.ID, Path: source.Path,

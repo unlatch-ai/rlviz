@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/unlatch-ai/rlviz/internal/presentation"
 )
 
 var ErrNotFound = errors.New("indexed rollout not found")
@@ -87,10 +88,64 @@ func (i *Index) Status(ctx context.Context, source Source) (SourceStatus, error)
 }
 
 func (i *Index) Remove(ctx context.Context, sourceID string) error {
-	if _, err := i.db.ExecContext(ctx, `DELETE FROM sources WHERE id=?`, sourceID); err != nil {
+	tx, err := i.db.BeginTx(ctx, nil)
+	if err != nil {
 		return fmt.Errorf("remove indexed source: %w", err)
 	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sources WHERE id=?`, sourceID); err != nil {
+		return fmt.Errorf("remove indexed source: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM source_presentations WHERE source_id=?`, sourceID); err != nil {
+		return fmt.Errorf("remove source presentation: %w", err)
+	}
+	return tx.Commit()
+}
+
+// SetPresentation stores normalized declarative presentation independently of
+// source contents. A nil or JSON null configuration clears the prior value.
+func (i *Index) SetPresentation(ctx context.Context, sourceID string, config json.RawMessage) error {
+	if strings.TrimSpace(sourceID) == "" {
+		return errors.New("source id is required")
+	}
+	var exists int
+	if err := i.db.QueryRowContext(ctx, `SELECT 1 FROM sources WHERE id=?`, sourceID).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	} else if err != nil {
+		return fmt.Errorf("find source for presentation: %w", err)
+	}
+	normalized, err := presentation.NormalizeJSON(config)
+	if err != nil {
+		return fmt.Errorf("validate source presentation: %w", err)
+	}
+	if normalized == nil {
+		_, err = i.db.ExecContext(ctx, `DELETE FROM source_presentations WHERE source_id=?`, sourceID)
+	} else {
+		_, err = i.db.ExecContext(ctx, `INSERT INTO source_presentations(source_id,config_json,updated_at_ns)
+		  VALUES(?,?,?) ON CONFLICT(source_id) DO UPDATE SET config_json=excluded.config_json,updated_at_ns=excluded.updated_at_ns`,
+			sourceID, []byte(normalized), time.Now().UTC().UnixNano())
+	}
+	if err != nil {
+		return fmt.Errorf("store source presentation: %w", err)
+	}
 	return nil
+}
+
+// Presentation returns a validated normalized config, or nil when unset.
+func (i *Index) Presentation(ctx context.Context, sourceID string) (json.RawMessage, error) {
+	var data []byte
+	err := i.db.QueryRowContext(ctx, `SELECT config_json FROM source_presentations WHERE source_id=?`, sourceID).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read source presentation: %w", err)
+	}
+	normalized, err := presentation.NormalizeJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("read invalid source presentation: %w", err)
+	}
+	return normalized, nil
 }
 
 // Cleanup removes every cached source whose ID is not in keepIDs.
@@ -103,11 +158,30 @@ func (i *Index) Cleanup(ctx context.Context, keepIDs []string) (int64, error) {
 			args[n] = keepIDs[n]
 		}
 	}
-	result, err := i.db.ExecContext(ctx, query, args...)
+	tx, err := i.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("clean indexed sources: %w", err)
 	}
-	return result.RowsAffected()
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("clean indexed sources: %w", err)
+	}
+	presentationQuery := `DELETE FROM source_presentations`
+	if len(keepIDs) != 0 {
+		presentationQuery += ` WHERE source_id NOT IN (` + strings.TrimRight(strings.Repeat("?,", len(keepIDs)), ",") + `)`
+	}
+	if _, err := tx.ExecContext(ctx, presentationQuery, args...); err != nil {
+		return 0, fmt.Errorf("clean source presentations: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (i *Index) TrajectoryContext(ctx context.Context, sourceID, trajectoryID string) (TrajectoryContext, error) {

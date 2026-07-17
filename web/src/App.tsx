@@ -7,12 +7,13 @@ import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./comm
 import { duration, eventText, json, payload, preview, time, title } from "./format";
 import { GroupView } from "./GroupView";
 import { KeymapDialog } from "./KeymapDialog";
+import { applyPresentationTheme } from "./presentation";
 import { deriveLandmark, isContextEvent } from "./research";
 import { OutcomeView, TranscriptView } from "./ResearchViews";
 import { sampleTrajectory } from "./sample";
 import { TrajectoryTabs } from "./TrajectoryTabs";
 import type { TrajectorySurface } from "./TrajectoryTabs";
-import type { AnalysisResponse, ComparisonResponse, GroupPathsResponse, GroupResponse, IndexedSource, Trajectory, TrajectoryArtifact, TrajectoryEvent } from "./types";
+import type { AnalysisResponse, ComparisonResponse, GroupPathsResponse, GroupResponse, IndexedSource, PresentationConfig, Trajectory, TrajectoryArtifact, TrajectoryEvent } from "./types";
 import { VirtualList } from "./VirtualList";
 
 const kindMark: Record<string, string> = {
@@ -113,6 +114,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
   const [loading, setLoading] = useState(!initialTrajectory);
   const [eventTotal, setEventTotal] = useState(trajectory.events.length);
   const [indexSource, setIndexSource] = useState<IndexedSource | null>(null);
+  const [presentation, setPresentation] = useState<PresentationConfig | undefined>();
   const [selectedId, setSelectedId] = useState(validID(new URLSearchParams(globalThis.location?.search ?? "").get("event")) ?? trajectory.events[0]?.id ?? "");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("all");
@@ -153,7 +155,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
       const result = await loadTrajectory(controller.signal);
       const next = result.trajectory;
       const requestedEvent = validID(params.get("event"));
-      setTrajectory(next); setIsSample(result.isSample); setSelectedId(requestedEvent ?? next.events[0]?.id ?? ""); setLoading(false); setIndexSource(result.source ?? null);
+      setTrajectory(next); setIsSample(result.isSample); setSelectedId(requestedEvent ?? next.events[0]?.id ?? ""); setLoading(false); setIndexSource(result.source ?? null); setPresentation(result.presentation);
       setEventTotal(result.page?.total ?? next.events.length);
       if (!indexed || result.isSample || !sourceId) return;
       let after = result.page?.next_sequence ?? next.events.at(-1)?.sequence;
@@ -219,6 +221,8 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     run().catch(() => setLoading(false));
     return () => controller.abort();
   }, [initialTrajectory, routeVersion]);
+
+  useEffect(() => applyPresentationTheme(presentation), [presentation]);
 
   useEffect(() => {
     const params = new URLSearchParams(globalThis.location?.search ?? "");
@@ -395,7 +399,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
   </div>;
   if (group) return <div className="app-shell group-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>{group.group_id}</strong></div>{(groupError || isDemo) && <div className="top-actions">{groupError && <span className="group-error">{groupError}</span>}{isDemo && <span className="demo-pill">Synthetic demo</span>}</div>}</header>
-    <GroupView group={group} paths={groupPaths} pathsError={groupPathsError} initialQuery={validID(new URLSearchParams(globalThis.location?.search ?? "").get("cohort_filter"), 1024) ?? ""} onQueryChange={(value) => replaceParams((params) => value ? params.set("cohort_filter", value) : params.delete("cohort_filter"))} onClose={() => { setGroup(null); replaceParams((params) => viewerKeys.forEach((key) => params.delete(key))); }} onOpen={openGroupTrajectory} onCompare={(left, right) => void openComparison(left, right)} />
+    <GroupView group={group} presentation={presentation} paths={groupPaths} pathsError={groupPathsError} initialQuery={validID(new URLSearchParams(globalThis.location?.search ?? "").get("cohort_filter"), 1024) ?? ""} onQueryChange={(value) => replaceParams((params) => value ? params.set("cohort_filter", value) : params.delete("cohort_filter"))} onClose={() => { setGroup(null); replaceParams((params) => viewerKeys.forEach((key) => params.delete(key))); }} onOpen={openGroupTrajectory} onCompare={(left, right) => void openComparison(left, right)} />
   </div>;
   if (!selected) return <main className="empty">No events in this trajectory.</main>;
   return (

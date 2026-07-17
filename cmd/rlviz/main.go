@@ -61,6 +61,8 @@ func main() {
 		runDoctor(os.Args[2:])
 	case "formats":
 		runFormats(os.Args[2:])
+	case "presentation":
+		runPresentation(os.Args[2:])
 	case "inspect":
 		runInspect(os.Args[2:])
 	case "setup":
@@ -90,8 +92,9 @@ func runOpen(arguments []string) {
 	noOpen := flags.Bool("no-open", false, "do not open the browser")
 	jsonOutput := flags.Bool("json", false, "print machine-readable output")
 	adapter := flags.String("adapter", "", "trusted adapter plugin path")
+	presentationPath := flags.String("presentation", "", "validated declarative presentation JSON")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: rlviz open [--no-open] [--json] [--adapter PATH] SOURCE")
+		fmt.Fprintln(flags.Output(), "Usage: rlviz open [--no-open] [--json] [--adapter PATH] [--presentation FILE] SOURCE")
 	}
 	if err := flags.Parse(normalizeViewerArguments(arguments)); err != nil {
 		os.Exit(2)
@@ -101,7 +104,11 @@ func runOpen(arguments []string) {
 		os.Exit(2)
 	}
 
-	openSource(flags.Arg(0), *adapter, *noOpen, *jsonOutput, "open")
+	presentationConfig, err := loadPresentationFile(*presentationPath)
+	if err != nil {
+		fatalError("open", *jsonOutput, err)
+	}
+	openSource(flags.Arg(0), *adapter, presentationConfig, *noOpen, *jsonOutput, "open")
 }
 
 func runServe(arguments []string) {
@@ -111,8 +118,9 @@ func runServe(arguments []string) {
 	port := flags.Int("port", 0, "loopback port (0 selects an available port)")
 	jsonOutput := flags.Bool("json", false, "print machine-readable startup output")
 	adapter := flags.String("adapter", "", "trusted adapter plugin path")
+	presentationPath := flags.String("presentation", "", "validated declarative presentation JSON")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] SOURCE")
+		fmt.Fprintln(flags.Output(), "Usage: rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] [--presentation FILE] SOURCE")
 	}
 	if err := flags.Parse(normalizeViewerArguments(arguments)); err != nil {
 		os.Exit(2)
@@ -122,7 +130,11 @@ func runServe(arguments []string) {
 		os.Exit(2)
 	}
 
-	viewer, err := app.StartViewer(app.Viewer{SourcePath: flags.Arg(0), AdapterPath: *adapter, Port: *port})
+	presentationConfig, err := loadPresentationFile(*presentationPath)
+	if err != nil {
+		fatalError("serve", *jsonOutput, err)
+	}
+	viewer, err := app.StartViewer(app.Viewer{SourcePath: flags.Arg(0), AdapterPath: *adapter, Presentation: presentationConfig, Port: *port})
 	if err != nil {
 		fatalError("serve", *jsonOutput, err)
 	}
@@ -533,7 +545,7 @@ func resolveViewerURL(metadata daemon.Metadata, value string) (string, error) {
 }
 
 func normalizeViewerArguments(arguments []string) []string {
-	valueFlags := map[string]bool{"--port": true, "--adapter": true}
+	valueFlags := map[string]bool{"--port": true, "--adapter": true, "--presentation": true}
 	booleanFlags := map[string]bool{"--no-open": true, "--open": true, "--json": true}
 	flags := make([]string, 0, len(arguments))
 	paths := make([]string, 0, 1)
@@ -545,7 +557,7 @@ func normalizeViewerArguments(arguments []string) []string {
 				index++
 				flags = append(flags, arguments[index])
 			}
-		} else if booleanFlags[argument] || strings.HasPrefix(argument, "--port=") || strings.HasPrefix(argument, "--adapter=") {
+		} else if booleanFlags[argument] || strings.HasPrefix(argument, "--port=") || strings.HasPrefix(argument, "--adapter=") || strings.HasPrefix(argument, "--presentation=") {
 			flags = append(flags, argument)
 		} else if strings.HasPrefix(argument, "--") {
 			flags = append(flags, argument)
@@ -634,12 +646,13 @@ Visualize and compare agent rollouts.
 
 Usage:
   rlviz demo [--no-open] [--json]
-  rlviz open [--no-open] [--json] [--adapter PATH] SOURCE
-  rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] SOURCE
+  rlviz open [--no-open] [--json] [--adapter PATH] [--presentation FILE] SOURCE
+  rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] [--presentation FILE] SOURCE
   rlviz status [--json]
   rlviz stop [--json]
   rlviz doctor [--json]
   rlviz formats [--json] [--project DIR] [--plugin-root DIR]...
+  rlviz presentation validate [--json] FILE
   rlviz inspect [--json] [--adapter PATH] SOURCE
   rlviz setup agent <codex|claude-code|cursor> (--print | --dry-run --destination PATH | --write --destination PATH) [--json]
   rlviz cache <status|clean>

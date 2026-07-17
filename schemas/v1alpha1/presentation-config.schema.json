@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rlviz.dev/schemas/v1alpha1/presentation-config.schema.json",
+  "title": "RLViz declarative presentation configuration",
+  "type": "object",
+  "required": ["api_version"],
+  "properties": {
+    "api_version": { "const": "rlviz.dev/v1alpha1" },
+    "fields": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": { "$ref": "#/$defs/scalar_field_id" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "maxLength": 48, "pattern": "^[^\\x00-\\x1F]*$" },
+          "description": { "type": "string", "maxLength": 240, "pattern": "^[^\\x00-\\x1F]*$" }
+        },
+        "additionalProperties": false,
+        "anyOf": [{ "required": ["label"] }, { "required": ["description"] }]
+      }
+    },
+    "scalars": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": { "$ref": "#/$defs/field_id" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["format"],
+        "properties": {
+          "format": { "enum": ["number", "integer", "percent_fraction", "duration_ms", "bytes", "scientific"] },
+          "precision": { "type": "integer", "minimum": 0, "maximum": 6 },
+          "unit": { "type": "string", "maxLength": 16, "pattern": "^[^\\x00-\\x1F]*$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "group": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/field_id" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "theme": {
+      "type": "object",
+      "maxProperties": 17,
+      "propertyNames": {
+        "enum": ["surface_canvas", "surface_panel", "surface_raised", "surface_overlay", "border_subtle", "border_strong", "text_primary", "text_secondary", "text_muted", "text_faint", "focus", "selection", "success", "info", "warning", "danger", "context_change"]
+      },
+      "additionalProperties": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "field_id": {
+      "type": "string",
+      "pattern": "^(reward|pass|status|termination|events|errors|tokens|latency|signal:[A-Za-z0-9][A-Za-z0-9._-]{0,127})$"
+    },
+    "scalar_field_id": {
+      "type": "string",
+      "pattern": "^(reward|events|errors|tokens|latency|signal:[A-Za-z0-9][A-Za-z0-9._-]{0,127})$"
+    }
+  }
+}

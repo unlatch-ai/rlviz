@@ -2,12 +2,24 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestForegroundViewerValidatesPresentationBeforeSource(t *testing.T) {
+	_, err := StartViewer(Viewer{
+		SourcePath:   filepath.Join(t.TempDir(), "missing.ndjson"),
+		Presentation: json.RawMessage(`{"api_version":"rlviz.dev/v1alpha1","script":"bad"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "presentation") {
+		t.Fatalf("error=%v", err)
+	}
+}
 
 func TestForegroundViewerRequiresFragmentToken(t *testing.T) {
 	viewer, err := StartViewer(Viewer{SourcePath: filepath.Join("..", "..", "fixtures", "canonical", "linear.ndjson")})

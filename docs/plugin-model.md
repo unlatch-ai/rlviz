@@ -8,7 +8,7 @@ RLViz has three extension layers with different trust and ownership:
 | --- | --- | --- |
 | Adapter | Source detection and canonical mapping | Trusted local process |
 | Analyzer | Deterministic derived findings and signals | Trusted local process or built in |
-| Presentation configuration | Labels, formats, columns, badges, keymaps, theme tokens | Validated declarative data |
+| Presentation configuration | Labels, scalar formats, default columns, semantic theme tokens | Validated declarative data |
 
 Core RLViz owns navigation, layout, accessibility, performance, source/raw
 provenance, and the design system.
@@ -69,3 +69,48 @@ require an explicit adapter path and an approved content digest. Automatic
 source probing remains future work and must preserve those trust boundaries.
 Presentation-only configuration may use a separate schema-validation path
 because it cannot execute code.
+
+## Presentation v1alpha1 contract
+
+`schemas/v1alpha1/presentation-config.schema.json` defines the first bounded
+contract. It supports display labels and descriptions for built-in group fields
+and named signals, scalar format and unit hints, default group columns, and a
+fixed allowlist of semantic color tokens. Files are JSON-only and capped at 64
+KiB; maps and lists have independent count limits. Unknown keys fail closed.
+
+Field identifiers are the built-in group column names (`reward`, `pass`,
+`status`, `termination`, `events`, `errors`, `tokens`, and `latency`) or
+`signal:<canonical signal name>`, where the signal name uses letters, digits,
+periods, underscores, or hyphens. Scalar formats are core-owned primitives:
+`number`, `integer`, `percent_fraction`, `duration_ms`, `bytes`, and
+`scientific`. `percent_fraction` explicitly treats `1` as 100 percent. A unit is
+plain suffix text, not a formatting template. Scalar formatting applies only to
+numeric built-ins (`reward`, `events`, `errors`, `tokens`, and `latency`) and
+canonical signals; nonnumeric fields fail validation.
+
+Theme values are opaque six-digit hex colors for a fixed semantic-token
+allowlist. Runtime validation resolves partial overrides against the shipped
+dark theme and enforces minimum contrast for primary and secondary text, focus,
+and critical status colors. Primitive colors, typography, spacing, selectors,
+CSS functions, and URLs are not configurable.
+
+Validate a file before using it:
+
+```bash
+rlviz presentation validate --json examples/presentation/research.json
+```
+
+The Go contract lives in `internal/presentation`. `rlviz open SOURCE
+--presentation FILE` and foreground `rlviz serve SOURCE --presentation FILE`
+load explicit files only. The CLI validates before any daemon request; the
+daemon independently validates registration input and exposes only normalized
+JSON to the viewer. There is deliberately no implicit project or user config
+discovery yet. Opening a source without the flag clears its prior presentation.
+
+The normalized config is stored separately from source identity and data
+fingerprints, so it survives daemon restarts and source refreshes without
+causing re-indexing. TypeScript mirrors the Go types;
+`GroupView` maps configured columns onto its existing built-in/signal model and
+uses the current user-saved column layout as a higher-priority preference.
+Theme keys map to the same hyphenated CSS custom-property names only after
+validation. No presentation file is discovered from executable plugin output.

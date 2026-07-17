@@ -88,6 +88,19 @@ rlviz open ./path/to/rollout
 Recognized sources open normally. Unsupported sources return the existing
 structured diagnostic and an adapter scaffold command.
 
+If a team wants stable labels, scalar formatting, cohort columns, or semantic
+theme tokens, pass an explicit declarative configuration:
+
+```bash
+rlviz presentation validate ./presentation.json
+rlviz open ./path/to/rollout --presentation ./presentation.json
+```
+
+The file is strict, bounded JSON rather than executable UI code. It is
+validated before daemon startup and again at registration. The normalized
+configuration survives source refreshes and daemon restarts. Reopening that
+source without `--presentation` intentionally clears the prior configuration.
+
 ### 6. Adapt a private format
 
 The target convenience flow is:

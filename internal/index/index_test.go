@@ -425,7 +425,7 @@ func TestSQLitePragmas(t *testing.T) {
 	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if strings.ToLower(journal) != "wal" || foreignKeys != 1 || busy != 5000 || version != 3 {
+	if strings.ToLower(journal) != "wal" || foreignKeys != 1 || busy != 5000 || version != 4 {
 		t.Fatalf("pragmas: journal=%s foreign=%d busy=%d version=%d", journal, foreignKeys, busy, version)
 	}
 }
@@ -461,8 +461,45 @@ func TestOpenMigratesPreProgressiveSourceState(t *testing.T) {
 		}
 	}
 	var version int
-	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 3 {
+	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 4 {
 		t.Fatalf("version=%d err=%v", version, err)
+	}
+	var presentationTable string
+	if err := idx.db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='source_presentations'`).Scan(&presentationTable); err != nil || presentationTable != "source_presentations" {
+		t.Fatalf("presentation migration=%q err=%v", presentationTable, err)
+	}
+}
+
+func TestPresentationPersistsAcrossSourceReplacementAndClearsExplicitly(t *testing.T) {
+	idx := openTestIndex(t)
+	ctx := context.Background()
+	stream := fixture(t, 1, false)
+	source := Source{ID: "presented", Path: "/trace.ndjson", Fingerprint: "first", Size: int64(len(stream)), ModTime: time.Unix(1, 0)}
+	if _, err := idx.Replace(ctx, source, bytes.NewReader(stream)); err != nil {
+		t.Fatal(err)
+	}
+	config := json.RawMessage(`{ "group": { "columns": ["reward"] }, "api_version": "rlviz.dev/v1alpha1" }`)
+	if err := idx.SetPresentation(ctx, source.ID, config); err != nil {
+		t.Fatal(err)
+	}
+	got, err := idx.Presentation(ctx, source.ID)
+	if err != nil || string(got) != `{"api_version":"rlviz.dev/v1alpha1","group":{"columns":["reward"]}}` {
+		t.Fatalf("normalized presentation=%s err=%v", got, err)
+	}
+	source.Fingerprint = "second"
+	if _, err := idx.Replace(ctx, source, bytes.NewReader(stream)); err != nil {
+		t.Fatal(err)
+	}
+	got, err = idx.Presentation(ctx, source.ID)
+	if err != nil || len(got) == 0 {
+		t.Fatalf("presentation after refresh=%s err=%v", got, err)
+	}
+	if err := idx.SetPresentation(ctx, source.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err = idx.Presentation(ctx, source.ID)
+	if err != nil || got != nil {
+		t.Fatalf("presentation after clear=%s err=%v", got, err)
 	}
 }
 

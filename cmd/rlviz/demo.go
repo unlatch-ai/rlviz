@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
@@ -37,7 +38,7 @@ func runDemo(arguments []string) {
 	if err != nil {
 		fatalError("demo", *jsonOutput, err)
 	}
-	openSource(path, "", *noOpen, *jsonOutput, "demo")
+	openSource(path, "", nil, *noOpen, *jsonOutput, "demo")
 }
 
 func ensureDemoSource(paths daemon.Paths) (string, error) {
@@ -82,7 +83,7 @@ func ensureDemoSource(paths daemon.Paths) (string, error) {
 	return path, nil
 }
 
-func openSource(path, adapter string, noOpen, jsonOutput bool, command string) {
+func openSource(path, adapter string, presentationConfig json.RawMessage, noOpen, jsonOutput bool, command string) {
 	paths, err := daemon.DefaultPaths()
 	if err != nil {
 		fatalError(command, jsonOutput, err)
@@ -101,7 +102,7 @@ func openSource(path, adapter string, noOpen, jsonOutput bool, command string) {
 	if err != nil {
 		fatalError(command, jsonOutput, err)
 	}
-	registered, err := (daemon.Client{}).Register(ctx, ensured.Metadata, daemon.RegisterRequest{Path: path, Adapter: adapter})
+	registered, err := (daemon.Client{}).Register(ctx, ensured.Metadata, daemon.RegisterRequest{Path: path, Adapter: adapter, Presentation: presentationConfig})
 	if err != nil {
 		fatalError(command, jsonOutput, err)
 	}

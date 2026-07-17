@@ -128,6 +128,37 @@ export interface GroupResponse {
   [key: string]: unknown;
 }
 
+export const presentationThemeTokens = [
+  "surface_canvas", "surface_panel", "surface_raised", "surface_overlay",
+  "border_subtle", "border_strong", "text_primary", "text_secondary",
+  "text_muted", "text_faint", "focus", "selection", "success", "info",
+  "warning", "danger", "context_change",
+] as const;
+export type PresentationThemeToken = typeof presentationThemeTokens[number];
+export type PresentationFieldID = "reward" | "pass" | "status" | "termination" | "events" | "errors" | "tokens" | "latency" | `signal:${string}`;
+export type PresentationScalarFieldID = Exclude<PresentationFieldID, "pass" | "status" | "termination">;
+export type PresentationScalarKind = "number" | "integer" | "percent_fraction" | "duration_ms" | "bytes" | "scientific";
+
+export interface PresentationField {
+  label?: string;
+  description?: string;
+}
+
+export interface PresentationScalarFormat {
+  format: PresentationScalarKind;
+  precision?: number;
+  unit?: string;
+}
+
+/** Validated, non-executable presentation metadata from the local daemon. */
+export interface PresentationConfig {
+  api_version: "rlviz.dev/v1alpha1";
+  fields?: Partial<Record<PresentationFieldID, PresentationField>>;
+  scalars?: Partial<Record<PresentationScalarFieldID, PresentationScalarFormat>>;
+  group?: { columns?: PresentationFieldID[] };
+  theme?: Partial<Record<PresentationThemeToken, string>>;
+}
+
 export interface PathFingerprint {
   kind: string;
   class: string;
@@ -178,6 +209,7 @@ export interface TrajectoryResponse {
   signal_page?: PageMetadata;
   artifact_page?: PageMetadata;
   source?: IndexedSource;
+  presentation?: PresentationConfig;
   id?: string;
   name?: string;
   [key: string]: unknown;

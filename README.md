@@ -43,6 +43,19 @@ make build
 ./bin/rlviz open ./fixtures/canonical/linear.ndjson
 ```
 
+Apply a validated, non-executable presentation config explicitly:
+
+```bash
+rlviz open ./trace.ndjson --presentation ./presentation.json
+# foreground debugging uses the same contract
+rlviz serve ./trace.ndjson --presentation ./presentation.json
+```
+
+The CLI validates the bounded JSON before contacting or starting the daemon.
+The daemon validates it again, stores only normalized JSON, and returns it as
+the top-level `presentation` object. Opening the same source without
+`--presentation` clears its prior presentation configuration.
+
 `rlviz open` starts or reuses a private loopback daemon and returns after registration. Use `rlviz status` and `rlviz stop` to inspect or stop it; `rlviz serve` remains the explicit foreground debugging mode.
 
 The daemon incrementally decodes sources into a private SQLite cache, watches opened files for changes, and serves paginated events to a virtualized UI. Group sources add a sortable trajectory table, aggregate outcomes, compact behavioral paths, and deterministic two-run divergence comparison.

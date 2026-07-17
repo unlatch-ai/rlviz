@@ -52,6 +52,25 @@ func TestTrajectoryAPI(t *testing.T) {
 	}
 }
 
+func TestForegroundDocumentReturnsPresentation(t *testing.T) {
+	document := Document{
+		Trajectory:   &model.Trajectory{ID: "trajectory"},
+		Presentation: json.RawMessage(`{"api_version":"rlviz.dev/v1alpha1","group":{"columns":["reward"]}}`),
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/trajectory", nil)
+	response := httptest.NewRecorder()
+	NewHandler(document).ServeHTTP(response, request)
+	var payload map[string]any
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	if response.Code != http.StatusOK || decodeErr != nil {
+		t.Fatalf("status=%d body=%s err=%v", response.Code, response.Body.String(), decodeErr)
+	}
+	config, ok := payload["presentation"].(map[string]any)
+	if !ok || config["api_version"] != "rlviz.dev/v1alpha1" {
+		t.Fatalf("presentation=%#v", payload["presentation"])
+	}
+}
+
 func TestDaemonSourceRegistrationRequiresTokenAndUsesStableURL(t *testing.T) {
 	registry := NewRegistry()
 	loader := func(_ context.Context, path, adapter string) (string, Document, error) {

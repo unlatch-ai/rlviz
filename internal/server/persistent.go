@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+
+	"github.com/unlatch-ai/rlviz/internal/presentation"
 )
 
-type PersistentRegistrar func(context.Context, string, string) (Registration, error)
+type PersistentRegistrar func(context.Context, string, string, json.RawMessage) (Registration, error)
 
 // NewPersistentHandler serves daemon lifecycle, source registration, indexed
 // reads, and the embedded viewer over one authenticated loopback origin.
@@ -39,8 +41,9 @@ func NewPersistentHandler(reader IndexedReader, token string, registrar Persiste
 		decoder := json.NewDecoder(request.Body)
 		decoder.DisallowUnknownFields()
 		var input struct {
-			Path    string `json:"path"`
-			Adapter string `json:"adapter,omitempty"`
+			Path         string          `json:"path"`
+			Adapter      string          `json:"adapter,omitempty"`
+			Presentation json.RawMessage `json:"presentation"`
 		}
 		if err := decoder.Decode(&input); err != nil {
 			writeJSONError(response, http.StatusBadRequest, "invalid_request", err)
@@ -53,7 +56,12 @@ func NewPersistentHandler(reader IndexedReader, token string, registrar Persiste
 			writeJSONError(response, http.StatusBadRequest, "invalid_request", err)
 			return
 		}
-		registration, err := registrar(request.Context(), input.Path, input.Adapter)
+		normalizedPresentation, err := presentation.NormalizeJSON(input.Presentation)
+		if err != nil {
+			writeJSONError(response, http.StatusBadRequest, "invalid_presentation", err)
+			return
+		}
+		registration, err := registrar(request.Context(), input.Path, input.Adapter, normalizedPresentation)
 		if err != nil {
 			writeSourceError(response, err)
 			return

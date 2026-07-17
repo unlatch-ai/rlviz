@@ -26,17 +26,21 @@ function uniqueStrings(value: unknown, limit: number): string[] | undefined {
   return [...new Set(value.filter((item) => item.length > 0 && item.length <= MaxSignalNameLength))].slice(0, limit);
 }
 
-export function loadGroupColumnLayout(storage?: Pick<Storage, "getItem">): GroupColumnLayout {
+export function loadStoredGroupColumnLayout(storage?: Pick<Storage, "getItem">): GroupColumnLayout | null {
   try {
     const raw = (storage ?? browserStorage())?.getItem(groupColumnLayoutStorageKey);
-    if (!raw || raw.length > MaxStoredBytes) return defaultGroupColumnLayout;
+    if (!raw || raw.length > MaxStoredBytes) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || Array.isArray(parsed) || parsed.version !== Version) return defaultGroupColumnLayout;
+    if (!parsed || Array.isArray(parsed) || parsed.version !== Version) return null;
     const hidden = uniqueStrings(parsed.hiddenBuiltins, optionalBuiltinColumns.length);
     const signals = parsed.signalNames === null ? null : uniqueStrings(parsed.signalNames, MaxStoredSignals);
-    if (!hidden || signals === undefined) return defaultGroupColumnLayout;
+    if (!hidden || signals === undefined) return null;
     return { hiddenBuiltins: hidden.filter((key): key is OptionalBuiltinColumn => builtinSet.has(key)), signalNames: signals };
-  } catch { return defaultGroupColumnLayout; }
+  } catch { return null; }
+}
+
+export function loadGroupColumnLayout(storage?: Pick<Storage, "getItem">): GroupColumnLayout {
+  return loadStoredGroupColumnLayout(storage) ?? defaultGroupColumnLayout;
 }
 
 export function saveGroupColumnLayout(layout: GroupColumnLayout, storage?: Pick<Storage, "setItem">): void {

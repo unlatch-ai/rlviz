@@ -2,19 +2,22 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/unlatch-ai/rlviz/internal/daemon"
+	"github.com/unlatch-ai/rlviz/internal/presentation"
 	"github.com/unlatch-ai/rlviz/internal/server"
 )
 
 type Viewer struct {
-	SourcePath  string
-	AdapterPath string
-	Port        int
+	SourcePath   string
+	AdapterPath  string
+	Presentation json.RawMessage
+	Port         int
 }
 
 type RunningViewer struct {
@@ -27,10 +30,15 @@ type RunningViewer struct {
 // StartViewer validates and parses a source before opening a loopback listener.
 // The caller owns the returned server lifecycle.
 func StartViewer(config Viewer) (*RunningViewer, error) {
+	presentationConfig, err := presentation.NormalizeJSON(config.Presentation)
+	if err != nil {
+		return nil, fmt.Errorf("validate presentation configuration: %w", err)
+	}
 	path, document, err := LoadSource(context.Background(), config.SourcePath, config.AdapterPath)
 	if err != nil {
 		return nil, err
 	}
+	document.Presentation = presentationConfig
 	listener, err := server.ListenLoopback(config.Port)
 	if err != nil {
 		return nil, err

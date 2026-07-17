@@ -132,8 +132,8 @@ func TestSafePluginName(t *testing.T) {
 }
 
 func TestNormalizeViewerArgumentsPreservesEqualsFlag(t *testing.T) {
-	got := normalizeViewerArguments([]string{"trace.ndjson", "--port=7317"})
-	want := []string{"--port=7317", "trace.ndjson"}
+	got := normalizeViewerArguments([]string{"trace.ndjson", "--port=7317", "--presentation", "view.json"})
+	want := []string{"--port=7317", "--presentation", "view.json", "trace.ndjson"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalizeViewerArguments() = %#v, want %#v", got, want)
 	}

@@ -27,8 +27,9 @@ type Status struct {
 
 // RegisterRequest asks the daemon to open a read-only trajectory source.
 type RegisterRequest struct {
-	Path    string `json:"path"`
-	Adapter string `json:"adapter,omitempty"`
+	Path         string          `json:"path"`
+	Adapter      string          `json:"adapter,omitempty"`
+	Presentation json.RawMessage `json:"presentation"`
 }
 
 // RegisterResponse describes the registered source and browser destination.

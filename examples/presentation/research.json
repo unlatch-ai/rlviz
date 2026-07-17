@@ -1,0 +1,34 @@
+{
+  "api_version": "rlviz.dev/v1alpha1",
+  "fields": {
+    "reward": {
+      "label": "Return",
+      "description": "Source-provided trajectory reward"
+    },
+    "signal:reward.policy_compliance": {
+      "label": "Policy compliance",
+      "description": "Policy compliance component emitted by the adapter"
+    }
+  },
+  "scalars": {
+    "reward": {
+      "format": "number",
+      "precision": 3
+    },
+    "signal:reward.policy_compliance": {
+      "format": "number",
+      "precision": 3
+    }
+  },
+  "group": {
+    "columns": [
+      "pass",
+      "reward",
+      "tokens",
+      "signal:reward.policy_compliance"
+    ]
+  },
+  "theme": {
+    "context_change": "#b49cff"
+  }
+}

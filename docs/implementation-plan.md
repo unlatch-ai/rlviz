@@ -236,8 +236,10 @@ source-shaped verifier results are implemented. Reproducible cohort filters
 cover outcome fields, core metrics, and scalar signals. Selected tool arguments
 and results have a bounded field-level diff. Reward-rank, outlier, failure, and
 infrastructure shortcuts are command-registry backed. Optional metric and scalar
-signal column layouts are bounded, locally persisted, and fail safe. Broader
-declarative customization remains.
+signal column layouts are bounded, locally persisted, and fail safe. The first
+declarative presentation contract is wired end-to-end through explicit CLI
+flags, independent daemon validation, persistent normalized storage, and the
+trajectory API. Broader inspector and keymap customization remains.
 
 ### Deliverables
 
@@ -257,8 +259,9 @@ declarative customization remains.
 
 1. Specify safe agent setup write/merge semantics and complete the
    adapter-authoring tutorial.
-2. Gather real adapter fixtures and use them to validate message, tool-span,
-   verifier, and context semantics.
+2. Gather at least two representative real adapter fixtures and use them to
+   satisfy the context evidence gate in `context-semantics.md`, then validate
+   message, tool-span, verifier, and context semantics.
 3. Design the context-usage track and minimap only after those mappings are
    supported by the canonical model.
 4. Apply the trajectory design system to richer cohort distributions,

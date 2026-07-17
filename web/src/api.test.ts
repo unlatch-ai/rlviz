@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadComparison, loadGroupPaths, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
+import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadComparison, loadGroupPaths, loadTrajectory, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
 
@@ -34,6 +34,18 @@ describe("trajectory API normalization", () => {
     expect(trajectory.case_id).toBe("case-1");
     expect(trajectory.model).toBe("checkpoint-42");
     expect(trajectory.total_reward).toBe(0.75);
+  });
+
+  it("retains validated top-level presentation metadata", async () => {
+    const presentation = { api_version: "rlviz.dev/v1alpha1", fields: { reward: { label: "Return" } }, theme: { focus: "#8be6d0" } };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      trajectory: { id: "presented" },
+      events: [{ id: "evt", sequence: 0, kind: "message" }],
+      presentation,
+    }))));
+    const result = await loadTrajectory();
+    expect(result.isSample).toBe(false);
+    expect(result.presentation).toEqual(presentation);
   });
 
   it("builds a stable encoded group endpoint", () => {

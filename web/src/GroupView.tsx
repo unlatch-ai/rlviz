@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { matchesCohortQuery, parseCohortQuery } from "./cohortQuery";
 import type { CohortQueryRow, CohortScalar } from "./cohortQuery";
-import { loadGroupColumnLayout, optionalBuiltinColumns, resetGroupColumnLayout, saveGroupColumnLayout } from "./columnLayout";
+import { loadStoredGroupColumnLayout, optionalBuiltinColumns, resetGroupColumnLayout, saveGroupColumnLayout } from "./columnLayout";
 import type { GroupColumnLayout, OptionalBuiltinColumn } from "./columnLayout";
 import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./commands";
-import type { GroupPathNode, GroupPathsResponse, GroupResponse, GroupTrajectorySummary, Trajectory } from "./types";
+import { fieldMetadata, formatPresentedScalar, presentationDefaultLayout, scalarFormat } from "./presentation";
+import type { GroupPathNode, GroupPathsResponse, GroupResponse, GroupTrajectorySummary, PresentationConfig, PresentationFieldID, Trajectory } from "./types";
 
 type Scalar = CohortScalar;
 type KnownKey = "id" | "reward" | "pass" | "status" | "termination" | "events" | "errors" | "tokens" | "latency";
-type Column = { key: string; label: string; signal?: string };
+type Column = { key: PresentationFieldID; label: string; description?: string; signal?: string };
 type Row = CohortQueryRow;
 type FlatPath = { node: GroupPathNode; branch: boolean };
 const MaxSignalColumns = 8;
@@ -109,7 +110,7 @@ function isInfrastructureFailure(row: Row): boolean {
     || row.termination?.toLowerCase() === "infrastructure_error";
 }
 
-export function GroupView({ group, paths, pathsError, initialQuery = "", onQueryChange, onClose, onOpen, onCompare }: { group: GroupResponse; paths?: GroupPathsResponse | null; pathsError?: string; initialQuery?: string; onQueryChange?: (query: string) => void; onClose: () => void; onOpen: (id: string) => void; onCompare?: (left: string, right: string) => void }) {
+export function GroupView({ group, presentation, paths, pathsError, initialQuery = "", onQueryChange, onClose, onOpen, onCompare }: { group: GroupResponse; presentation?: PresentationConfig; paths?: GroupPathsResponse | null; pathsError?: string; initialQuery?: string; onQueryChange?: (query: string) => void; onClose: () => void; onOpen: (id: string) => void; onCompare?: (left: string, right: string) => void }) {
   useKeymapRevision();
   const rows = useMemo(() => group.trajectories.map(rowFromSummary).filter((row) => row.id), [group]);
   const [query, setQuery] = useState(initialQuery);
@@ -119,7 +120,10 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [mode, setMode] = useState<"trajectories" | "paths">("trajectories");
   const [selectedPath, setSelectedPath] = useState(0);
-  const [columnLayout, setColumnLayout] = useState<GroupColumnLayout>(() => loadGroupColumnLayout());
+  const savedColumnLayout = useMemo(() => loadStoredGroupColumnLayout(), []);
+  const configuredColumnOrder = presentation?.group?.columns ?? [];
+  const [columnLayout, setColumnLayout] = useState<GroupColumnLayout>(() => savedColumnLayout ?? presentationDefaultLayout(presentation));
+  const [useConfiguredOrder, setUseConfiguredOrder] = useState(!savedColumnLayout && configuredColumnOrder.length > 0);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const columnsButtonRef = useRef<HTMLButtonElement>(null);
@@ -129,22 +133,27 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
 
   const builtinColumns = useMemo<Column[]>(() => optionalBuiltinColumns
     .filter((key) => rows.some((row) => rowValue(row, key) !== undefined))
-    .map((key) => ({ key, label: builtinColumnLabels[key] })), [rows]);
+    .map((key) => ({ key, label: fieldMetadata(presentation, key).label ?? builtinColumnLabels[key], description: fieldMetadata(presentation, key).description })), [presentation, rows]);
   const allSignalColumns = useMemo<Column[]>(() => {
     const coverage = new Map<string, number>();
     rows.forEach((row) => Object.keys(row.signals).forEach((name) => {
       if (!knownSignalNames.has(name.toLowerCase())) coverage.set(name, (coverage.get(name) ?? 0) + 1);
     }));
     return [...coverage].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, MaxDiscoveredSignals)
-      .map(([name]) => ({ key: `signal:${name}`, label: signalLabel(name), signal: name }));
-  }, [rows]);
+      .map(([name]) => { const key = `signal:${name}` as const; const metadata = fieldMetadata(presentation, key); return { key, label: metadata.label ?? signalLabel(name), description: metadata.description, signal: name }; });
+  }, [presentation, rows]);
   const defaultSignalNames = useMemo(() => allSignalColumns.slice(0, MaxSignalColumns).map((column) => column.signal!), [allSignalColumns]);
   const selectedSignalNames = columnLayout.signalNames ?? defaultSignalNames;
   const selectedSignalSet = useMemo(() => new Set(selectedSignalNames), [selectedSignalNames]);
-  const columns = useMemo<Column[]>(() => [
+  const columns = useMemo<Column[]>(() => {
+    const selected = [
     ...builtinColumns.filter((column) => !columnLayout.hiddenBuiltins.includes(column.key as OptionalBuiltinColumn)),
     ...allSignalColumns.filter((column) => selectedSignalSet.has(column.signal!)).slice(0, MaxSignalColumns),
-  ], [allSignalColumns, builtinColumns, columnLayout.hiddenBuiltins, selectedSignalSet]);
+    ];
+    if (!useConfiguredOrder) return selected;
+    const order = new Map(configuredColumnOrder.map((key, index) => [key, index]));
+    return selected.sort((left, right) => (order.get(left.key) ?? configuredColumnOrder.length) - (order.get(right.key) ?? configuredColumnOrder.length));
+  }, [allSignalColumns, builtinColumns, columnLayout.hiddenBuiltins, configuredColumnOrder, selectedSignalSet, useConfiguredOrder]);
   const signalColumnCount = columns.filter((column) => column.signal).length;
   const availableSignalCount = useMemo(() => new Set(rows.flatMap((row) => Object.keys(row.signals).filter((name) => !knownSignalNames.has(name.toLowerCase())))).size, [rows]);
   const parsedQuery = useMemo(() => parseCohortQuery(query), [query]);
@@ -165,7 +174,7 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
   const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
   const updateQuery = (value: string) => { setQuery(value); onQueryChange?.(value); };
   const closeColumns = () => setColumnsOpen(false);
-  const updateColumnLayout = (next: GroupColumnLayout) => { setColumnLayout(next); saveGroupColumnLayout(next); };
+  const updateColumnLayout = (next: GroupColumnLayout) => { setUseConfiguredOrder(false); setColumnLayout(next); saveGroupColumnLayout(next); };
   const toggleBuiltinColumn = (key: OptionalBuiltinColumn) => updateColumnLayout({
     ...columnLayout,
     hiddenBuiltins: columnLayout.hiddenBuiltins.includes(key) ? columnLayout.hiddenBuiltins.filter((item) => item !== key) : [...columnLayout.hiddenBuiltins, key],
@@ -230,6 +239,15 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
     if (outcome) counts[outcome] = (counts[outcome] ?? 0) + 1;
     return counts;
   }, {})).sort((a, b) => b[1] - a[1]);
+  const rewardMetadata = fieldMetadata(presentation, "reward");
+  const passMetadata = fieldMetadata(presentation, "pass");
+  const formatValue = (row: Row, key: PresentationFieldID) => {
+    if (key === "pass") return row.pass === undefined ? "—" : row.pass ? "PASS" : "FAIL";
+    const configuredFormat = scalarFormat(presentation, key);
+    if (configuredFormat) return formatPresentedScalar(rowValue(row, key), configuredFormat);
+    return key === "latency" ? displayLatency(row.latency) : displayScalar(rowValue(row, key));
+  };
+  const formatReward = (value: number) => presentation?.scalars?.reward ? formatPresentedScalar(value, presentation.scalars.reward) : displayNumber(value);
 
   return <main className="group-view" aria-label="Trajectory group">
     <header className="group-heading">
@@ -237,8 +255,8 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
       <div className="group-heading-actions">{(paths || pathsError) && <button className={mode === "paths" ? "active" : ""} onClick={() => setMode((value) => value === "paths" ? "trajectories" : "paths")}>{mode === "paths" ? "Trajectories" : "Behavioral paths"} <kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd></button>}<button onClick={onClose}>Back to trajectory <kbd>{bindingLabel(mode === "paths" ? commandIds.paths.back : commandIds.group.back)}</kbd></button></div>
     </header>
     <section className="group-summary" aria-label="Group distribution">
-      <div><span>REWARD MEAN</span><strong>{rewards.length ? displayNumber(rewards.reduce((sum, value) => sum + value, 0) / rewards.length) : "—"}</strong><small>{rewards.length ? `${displayNumber(Math.min(...rewards))}–${displayNumber(Math.max(...rewards))}` : "not reported"}</small></div>
-      <div><span>PASS RATE</span><strong>{passed + failed ? `${Math.round(passed / (passed + failed) * 100)}%` : "—"}</strong><small>{passed + failed ? `${passed} pass · ${failed} fail` : "not reported"}</small></div>
+      <div title={rewardMetadata.description}><span>{(rewardMetadata.label ?? "Reward").toUpperCase()} MEAN</span><strong>{rewards.length ? formatReward(rewards.reduce((sum, value) => sum + value, 0) / rewards.length) : "—"}</strong><small>{rewards.length ? `${formatReward(Math.min(...rewards))}–${formatReward(Math.max(...rewards))}` : "not reported"}</small></div>
+      <div title={passMetadata.description}><span>{(passMetadata.label ?? "Pass").toUpperCase()} RATE</span><strong>{passed + failed ? `${Math.round(passed / (passed + failed) * 100)}%` : "—"}</strong><small>{passed + failed ? `${passed} pass · ${failed} fail` : "not reported"}</small></div>
       <div className="outcome-distribution"><span>OUTCOMES</span><div>{outcomes.length ? outcomes.map(([outcome, count]) => <b key={outcome}>{outcome}<i>{count}</i></b>) : <small>not reported</small>}</div></div>
     </section>
     {mode === "paths" ? <section className="group-path-panel" aria-label="Behavioral paths">
@@ -254,10 +272,10 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
     </section> : <section className="group-table-panel">
       <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" aria-invalid={queryDiagnostic ? true : undefined} aria-errormessage={queryDiagnostic ? "group-filter-error" : undefined} value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Filter · pass:false reward<0" title="Plain text or structured clauses, for example pass:false reward<0 signal.policy_reward<0" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label>{queryDiagnostic && <small id="group-filter-error" className="group-filter-error" role="status">{queryDiagnostic.message}</small>}<div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div><button ref={columnsButtonRef} className="column-picker-button" aria-haspopup="dialog" aria-expanded={columnsOpen} onClick={() => setColumnsOpen(true)}>Columns <kbd>{bindingLabel(commandIds.group.toggleColumns)}</kbd></button>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
       <div className="group-table-scroll">
-        <table className="group-table"><thead><tr><th className="compare-check-heading">Compare</th><th className="trajectory-column"><button onClick={() => chooseSort("id")}>Trajectory {sort === "id" ? (descending ? "↓" : "↑") : ""}</button></th>{columns.map(({ key, label, signal }) => <th key={key} title={signal ? `Canonical signal: ${signal}` : undefined}><button onClick={() => chooseSort(key)}>{label} {sort === key ? (descending ? "↓" : "↑") : ""}</button></th>)}<th></th></tr></thead>
+        <table className="group-table"><thead><tr><th className="compare-check-heading">Compare</th><th className="trajectory-column"><button onClick={() => chooseSort("id")}>Trajectory {sort === "id" ? (descending ? "↓" : "↑") : ""}</button></th>{columns.map(({ key, label, description, signal }) => <th key={key} title={description ?? (signal ? `Canonical signal: ${signal}` : undefined)}><button onClick={() => chooseSort(key)}>{label} {sort === key ? (descending ? "↓" : "↑") : ""}</button></th>)}<th></th></tr></thead>
           <tbody>{visible.map((row, index) => <tr key={row.id} className={`${index === selected ? "selected" : ""} ${compareIds.includes(row.id) ? "compare-selected" : ""}`} aria-selected={index === selected} onClick={() => setSelected(index)} onDoubleClick={() => onOpen(row.id)}>
             <td className="compare-check"><input type="checkbox" aria-label={`Select ${row.id} for comparison`} checked={compareIds.includes(row.id)} onClick={(event) => event.stopPropagation()} onChange={() => toggleCompare(row.id)} /></td><td className="trajectory-column"><strong>{row.id}</strong>{row.outcome && <small>{row.outcome}</small>}</td>
-            {columns.map(({ key }) => <td key={key} className={key === "reward" ? (row.reward ?? 0) < 0 ? "negative" : "positive" : ""}>{key === "pass" ? row.pass === undefined ? "—" : row.pass ? "PASS" : "FAIL" : key === "latency" ? displayLatency(row.latency) : displayScalar(rowValue(row, key))}</td>)}
+            {columns.map(({ key }) => <td key={key} className={key === "reward" ? (row.reward ?? 0) < 0 ? "negative" : "positive" : ""}>{formatValue(row, key)}</td>)}
             <td><button aria-label={`Open trajectory ${row.id}`} onClick={(event) => { event.stopPropagation(); onOpen(row.id); }}>Open</button></td>
           </tr>)}</tbody></table>
         {!visible.length && <div className="group-empty">{queryDiagnostic ? `Invalid filter · ${queryDiagnostic.message}` : "No matching trajectories"}</div>}
@@ -273,7 +291,7 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
             return <label key={column.key} title={column.signal}><input type="checkbox" checked={checked} disabled={!checked && signalColumnCount >= MaxSignalColumns} onChange={() => toggleSignalColumn(column.signal!)} /><span>{column.label}</span><code>{column.signal}</code></label>;
           })}{!allSignalColumns.length && <p>No additional scalar signals in this group.</p>}{availableSignalCount > MaxDiscoveredSignals && <p>Showing the {MaxDiscoveredSignals} highest-coverage signals.</p>}</fieldset>
         </div>
-        <footer><button onClick={() => { setColumnLayout(resetGroupColumnLayout()); }}>Reset default</button><button onClick={closeColumns}>Done</button></footer>
+        <footer><button onClick={() => { resetGroupColumnLayout(); setUseConfiguredOrder(configuredColumnOrder.length > 0); setColumnLayout(presentationDefaultLayout(presentation)); }}>Reset default</button><button onClick={closeColumns}>Done</button></footer>
       </section>
     </div>}
     <footer className="group-keybar"><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd> {mode === "paths" ? "trajectories" : "paths"}</span><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.next : commandIds.group.next)}</kbd><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.previous : commandIds.group.previous)}</kbd> select</span>{mode === "paths" ? <><span><kbd>{bindingLabel(commandIds.paths.open)}</kbd> open sample</span></> : <><span><kbd>{bindingLabel(commandIds.group.toggleCompare)}</kbd> mark</span><span><kbd>{bindingLabel(commandIds.group.compare)}</kbd> compare</span><span><kbd>{bindingLabel(commandIds.group.best)}</kbd><kbd>{bindingLabel(commandIds.group.median)}</kbd><kbd>{bindingLabel(commandIds.group.worst)}</kbd> reward rank</span><span><kbd>{bindingLabel(commandIds.group.rewardOutlier)}</kbd> outlier</span><span><kbd>{bindingLabel(commandIds.group.nextFailure)}</kbd><kbd>{bindingLabel(commandIds.group.nextInfraFailure)}</kbd> failures</span><span><kbd>{bindingLabel(commandIds.group.open)}</kbd> open</span><span><kbd>{bindingLabel(commandIds.group.search)}</kbd> filter</span></>}</footer>

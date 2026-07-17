@@ -65,5 +65,10 @@ CREATE TABLE IF NOT EXISTS analyzer_results (
   FOREIGN KEY(source_id,trajectory_id) REFERENCES trajectories(source_id,id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS analyzer_results_lookup ON analyzer_results(source_id,trajectory_id,name);
-PRAGMA user_version=3;
+-- Presentation is intentionally separate from source identity and data
+-- fingerprinting. Source refreshes replace canonical rows without changing a
+-- user's validated display configuration.
+CREATE TABLE IF NOT EXISTS source_presentations (
+  source_id TEXT PRIMARY KEY, config_json BLOB NOT NULL, updated_at_ns INTEGER NOT NULL
+);
 `
