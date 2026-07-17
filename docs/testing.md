@@ -10,7 +10,9 @@ flows, strong protocol fixtures, and focused component/unit tests.
 
 `make check` verifies Go formatting and vetting, Go tests, React/Vitest tests,
 npm installer tests, the production web build, the curl installer, and Homebrew
-formula rendering. CI also runs the Go race detector and release-target builds.
+formula rendering. The embedded production bundle uses the cross-platform
+Terser minifier so committed assets are byte-reproducible on macOS and Linux.
+CI also runs the Go race detector and release-target builds.
 
 ## Test layers
 
