@@ -10,8 +10,19 @@ rlviz setup agent claude-code --print
 rlviz setup agent cursor --print
 ```
 
-The command never writes project files. Review and merge the output into the
-appropriate project destination:
+To install one bundle, first dry-run and then explicitly create a
+project-relative destination:
+
+```bash
+rlviz setup agent codex --dry-run --destination .agents/rlviz.md
+rlviz setup agent codex --write --destination .agents/rlviz.md
+```
+
+Writes are create-only. RLViz never overwrites, appends to, or implicitly
+chooses a project instruction file.
+
+The `--print` and `--dry-run` modes never write project files. Review the
+output before creating a dedicated file or merging it into an existing one:
 
 | Agent | Source | Project destination |
 | --- | --- | --- |

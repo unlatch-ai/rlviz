@@ -641,7 +641,7 @@ Usage:
   rlviz doctor [--json]
   rlviz formats [--json]
   rlviz inspect [--json] [--adapter PATH] SOURCE
-  rlviz setup agent <codex|claude-code|cursor> --print [--json]
+  rlviz setup agent <codex|claude-code|cursor> (--print | --dry-run --destination PATH | --write --destination PATH) [--json]
   rlviz cache <status|clean>
   rlviz plugin <init|trust|validate|list|revoke>
   rlviz version [--json]

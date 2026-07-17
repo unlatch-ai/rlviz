@@ -121,15 +121,43 @@ rlviz setup agent cursor --print
 
 Add `--json` for a stable envelope containing the agent, bundled source,
 suggested project destination, and instruction content. The command is
-read-only and requires `--print`; it does not create or modify project files.
+read-only when `--print` is used; it does not create or modify project files.
 
-A future `--write` mode may create a dedicated include or rule file. It must:
+To inspect a specific installation without changing the repository, provide a
+project-relative destination explicitly:
 
-- refuse to replace an existing instruction file
-- show the destination and exact content before writing unless explicitly
-  requested non-interactively
-- keep instructions small and link to canonical local docs
-- preserve the adapter review and trust confirmation boundary
+```bash
+rlviz setup agent codex --dry-run --destination .agents/rlviz.md
+rlviz setup agent codex --dry-run --destination .agents/rlviz.md --json
+```
+
+Dry-run validates the destination and prints the exact bundled content. Its
+JSON result uses schema version `1`, mode `dry_run`, status `would_create`, and
+write policy `create_only`, with a SHA-256 digest of the content.
+
+Writing requires both `--write` and `--destination`:
+
+```bash
+rlviz setup agent codex --write --destination .agents/rlviz.md
+```
+
+Agent setup writes are deliberately create-only. The destination must remain
+inside the current project, absolute paths and parent traversal are rejected,
+and symbolic-link path components are refused. Missing parent directories may
+be created. The final file uses exclusive-create semantics, so an existing
+file or a concurrent creator wins and RLViz exits
+without replacing any content. There is no overwrite, append, or managed-block
+mode: merging general-purpose `AGENTS.md` or `CLAUDE.md` files safely requires
+project-specific judgment and stays with the user or coding agent.
+
+Use the suggested destination only as guidance; RLViz never selects it
+implicitly. `--print`, `--dry-run`, and `--write` are mutually exclusive.
+Successful JSON output always names the mode, status, destination when
+applicable, write policy, bundled source, exact content, and content digest.
+Failures use the existing stable `setup_agent_failed` diagnostic code.
+
+These instructions remain small, link to canonical local docs, and preserve
+the adapter review and trust confirmation boundary.
 
 Package-manager postinstall scripts should not modify project instructions.
 
