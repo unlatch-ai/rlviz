@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { matchesCohortQuery, parseCohortQuery } from "./cohortQuery";
+import type { CohortQueryRow, CohortScalar } from "./cohortQuery";
 import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./commands";
 import type { GroupPathNode, GroupPathsResponse, GroupResponse, GroupTrajectorySummary, Trajectory } from "./types";
 
-type Scalar = string | number | boolean;
+type Scalar = CohortScalar;
 type KnownKey = "id" | "reward" | "pass" | "status" | "termination" | "events" | "errors" | "tokens" | "latency";
 type Column = { key: string; label: string; signal?: string };
-type Row = {
-  id: string; reward?: number; pass?: boolean; outcome?: string; status?: string; termination?: string;
-  events?: number; errors?: number; tokens?: number; latency?: number; signals: Record<string, Scalar>;
-};
+type Row = CohortQueryRow;
 type FlatPath = { node: GroupPathNode; branch: boolean };
 const MaxSignalColumns = 8;
 const knownSignalNames = new Set(["reward", "pass", "success", "outcome", "event_count", "error_count", "token_count", "latency_ms", "duration_ms"]);
@@ -116,10 +115,11 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
   }, [rows]);
   const signalColumnCount = columns.filter((column) => column.signal).length;
   const availableSignalCount = useMemo(() => new Set(rows.flatMap((row) => Object.keys(row.signals).filter((name) => !knownSignalNames.has(name.toLowerCase())))).size, [rows]);
+  const parsedQuery = useMemo(() => parseCohortQuery(query), [query]);
+  const queryDiagnostic = parsedQuery.diagnostics[0];
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = needle ? rows.filter((row) => Object.entries(row).some(([key, value]) => key !== "signals" && String(value ?? "").toLowerCase().includes(needle)) || Object.entries(row.signals).some(([name, value]) => name.toLowerCase().includes(needle) || String(value).toLowerCase().includes(needle))) : rows;
+    const filtered = query.trim() ? rows.filter((row) => matchesCohortQuery(row, parsedQuery)) : rows;
     return [...filtered].sort((a, b) => {
       const left = rowValue(a, sort); const right = rowValue(b, sort);
       if (left === undefined) return 1;
@@ -127,7 +127,7 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
       const result = typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true });
       return descending ? -result : result;
     });
-  }, [rows, query, sort, descending]);
+  }, [rows, query, parsedQuery, sort, descending]);
 
   const chooseSort = (key: string) => { if (sort === key) setDescending((value) => !value); else { setSort(key); setDescending(key !== "id"); } };
   const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
@@ -187,7 +187,7 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
         {!flatPaths.length && <div className="group-empty">No behavioral events · {paths.tree.narrative_only_count} narrative-only trajectories</div>}
       </div> : <div className="group-empty">{pathsError || "Compact paths are still loading"}</div>}
     </section> : <section className="group-table-panel">
-      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter trajectories and signals" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label><div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
+      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" aria-invalid={queryDiagnostic ? true : undefined} aria-errormessage={queryDiagnostic ? "group-filter-error" : undefined} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter · pass:false reward<0" title="Plain text or structured clauses, for example pass:false reward<0 signal.policy_reward<0" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label>{queryDiagnostic && <small id="group-filter-error" className="group-filter-error" role="status">{queryDiagnostic.message}</small>}<div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
       <div className="group-table-scroll">
         <table className="group-table"><thead><tr><th className="compare-check-heading">Compare</th><th className="trajectory-column"><button onClick={() => chooseSort("id")}>Trajectory {sort === "id" ? (descending ? "↓" : "↑") : ""}</button></th>{columns.map(({ key, label, signal }) => <th key={key} title={signal ? `Canonical signal: ${signal}` : undefined}><button onClick={() => chooseSort(key)}>{label} {sort === key ? (descending ? "↓" : "↑") : ""}</button></th>)}<th></th></tr></thead>
           <tbody>{visible.map((row, index) => <tr key={row.id} className={`${index === selected ? "selected" : ""} ${compareIds.includes(row.id) ? "compare-selected" : ""}`} aria-selected={index === selected} onClick={() => setSelected(index)} onDoubleClick={() => onOpen(row.id)}>
@@ -195,7 +195,7 @@ export function GroupView({ group, paths, pathsError, onClose, onOpen, onCompare
             {columns.map(({ key }) => <td key={key} className={key === "reward" ? (row.reward ?? 0) < 0 ? "negative" : "positive" : ""}>{key === "pass" ? row.pass === undefined ? "—" : row.pass ? "PASS" : "FAIL" : key === "latency" ? displayLatency(row.latency) : displayScalar(rowValue(row, key))}</td>)}
             <td><button aria-label={`Open trajectory ${row.id}`} onClick={(event) => { event.stopPropagation(); onOpen(row.id); }}>Open</button></td>
           </tr>)}</tbody></table>
-        {!visible.length && <div className="group-empty">No matching trajectories</div>}
+        {!visible.length && <div className="group-empty">{queryDiagnostic ? `Invalid filter · ${queryDiagnostic.message}` : "No matching trajectories"}</div>}
       </div>
     </section>}
     <footer className="group-keybar"><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd> {mode === "paths" ? "trajectories" : "paths"}</span><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.next : commandIds.group.next)}</kbd><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.previous : commandIds.group.previous)}</kbd> select</span>{mode === "paths" ? <><span><kbd>{bindingLabel(commandIds.paths.open)}</kbd> open sample</span></> : <><span><kbd>{bindingLabel(commandIds.group.toggleCompare)}</kbd> mark</span><span><kbd>{bindingLabel(commandIds.group.compare)}</kbd> compare</span><span><kbd>{bindingLabel(commandIds.group.best)}</kbd> best</span><span><kbd>{bindingLabel(commandIds.group.worst)}</kbd> worst</span><span><kbd>{bindingLabel(commandIds.group.open)}</kbd> open</span><span><kbd>{bindingLabel(commandIds.group.search)}</kbd> filter</span></>}</footer>

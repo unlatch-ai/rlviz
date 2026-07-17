@@ -313,9 +313,11 @@ kbd { display: inline-block; min-width: 17px; padding: 1px 4px; border: 1px soli
 .outcome-distribution b i { color: var(--teal); font-style: normal; }
 .group-table-panel { min-height: 0; display: flex; flex-direction: column; margin: 16px 20px 0; border: 1px solid var(--line); border-radius: 6px 6px 0 0; overflow: hidden; background: var(--panel); }
 .group-tools { height: 45px; flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 6px 9px; border-bottom: 1px solid var(--line); }
-.group-tools label { width: 270px; height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; background: #090c0f; color: #626d78; }
+.group-tools label { width: 330px; height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; background: #090c0f; color: #626d78; }
 .group-tools label:focus-within { border-color: #3b8e7d; }
+.group-tools label:has(input[aria-invalid="true"]) { border-color: #7e3d45; }
 .group-tools input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 10px; }
+.group-filter-error { max-width: 260px; overflow: hidden; color: #d37b84; text-overflow: ellipsis; white-space: nowrap; font: 9px ui-monospace, SFMono-Regular, monospace; }
 .group-tools > span { margin-left: auto; color: #66717c; font: 9px ui-monospace, SFMono-Regular, monospace; }
 .compare-tools { margin-left: auto; display: flex; align-items: center; gap: 9px; color: #697581; font: 9px ui-monospace, SFMono-Regular, monospace; }
 .compare-tools button { border: 1px solid #347b69; border-radius: 4px; background: #133027; padding: 5px 8px; color: #a4e6d5; cursor: pointer; font-size: 9px; }

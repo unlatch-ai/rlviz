@@ -232,7 +232,8 @@ source-backed data-model work.
 
 Status: deterministic behavioral alignment, divergence navigation, and pair
 summary deltas for outcome, tokens, explicit context events, compactions, and
-source-shaped verifier results are implemented. Cohort filtering, structured
+source-shaped verifier results are implemented. Reproducible cohort filters
+cover outcome fields, core metrics, and scalar signals. Saved views, structured
 payload differences, and declarative customization remain.
 
 ### Deliverables

@@ -111,6 +111,26 @@ describe("trajectory group", () => {
     expect(screen.queryByText("attempt-good")).not.toBeInTheDocument();
   });
 
+  it("ANDs reproducible outcome, metric, and signal filters", () => {
+    render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} />);
+    const filter = screen.getByLabelText("Filter trajectories");
+    fireEvent.change(filter, { target: { value: "pass:false reward<0 signal.policy_reward<0" } });
+    expect(screen.getByText("attempt-bad")).toBeInTheDocument();
+    expect(screen.queryByText("attempt-good")).not.toBeInTheDocument();
+    expect(screen.queryByText("attempt-unknown")).not.toBeInTheDocument();
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+  });
+
+  it("fails malformed structured filters closed with a visible diagnostic", () => {
+    render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} />);
+    const filter = screen.getByLabelText("Filter trajectories");
+    fireEvent.change(filter, { target: { value: "reward:high" } });
+    expect(filter).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("reward requires a numeric comparison");
+    expect(screen.getByText(/Invalid filter/)).toBeInTheDocument();
+    expect(screen.queryByText("attempt-good")).not.toBeInTheDocument();
+  });
+
   it("selects exactly two trajectories by mouse and keyboard, then compares them", () => {
     const compare = vi.fn();
     render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} onCompare={compare} />);
