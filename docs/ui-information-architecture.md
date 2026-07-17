@@ -119,8 +119,9 @@ Transcript, event timeline, and outcome are implemented as one shared-selection
 workspace. The transcript is virtualized, deterministic turn boundaries are
 labeled inferred, and final output, graders, reward components, errors, and
 evidence link back to canonical events. Explicit `context:*` alignment keys
-appear as context landmarks and are keyboard reachable. The richer context
-usage track waits for a real cross-format canonical contract.
+appear as compatibility landmarks and are keyboard reachable. Sparse structured
+context observations render on a separate source-backed track without
+interpolating unobserved gaps.
 
 ## Landmark rail and minimap
 
@@ -139,6 +140,12 @@ list. The rail should expose:
 A thin overview track should show distribution across the full trajectory and
 the visible window. Filters operate on landmarks and the primary surface
 together. Search results and deep links must keep stable event/turn identity.
+
+The first overview is implemented as three bounded aggregate lanes for model,
+interaction, and evaluation activity. It shows loaded extent, current event-list
+viewport, and selected-event position across at most 64 bins. Unloaded space is
+explicitly unavailable. Context evidence remains in the context track; the
+overview does not duplicate individual landmarks or infer missing events.
 
 ## Details panel
 

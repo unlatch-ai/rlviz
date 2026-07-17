@@ -14,9 +14,11 @@ import { deriveLandmark, isContextEvent } from "./research";
 import { OutcomeView, TranscriptView } from "./ResearchViews";
 import { sampleTrajectory } from "./sample";
 import { TrajectoryTabs } from "./TrajectoryTabs";
+import { TrajectoryOverview } from "./TrajectoryOverview";
 import type { TrajectorySurface } from "./TrajectoryTabs";
 import type { AnalysisResponse, ComparisonResponse, GroupPathsResponse, GroupResponse, IndexedSource, PresentationConfig, Trajectory, TrajectoryArtifact, TrajectoryEvent } from "./types";
 import { VirtualList } from "./VirtualList";
+import type { VisibleRange } from "./VirtualList";
 
 const kindMark: Record<string, string> = {
   message: "M", generation: "AI", tool: "T", environment_action: "A", observation: "O",
@@ -138,6 +140,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
   const [analysisError, setAnalysisError] = useState("");
   const [analysisVersion, setAnalysisVersion] = useState(0);
   const [selectedArtifactId, setSelectedArtifactId] = useState(trajectory.artifacts?.[0]?.id ?? "");
+  const [visibleRange, setVisibleRange] = useState<VisibleRange>();
   const [routeVersion, setRouteVersion] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const outlineRef = useRef<HTMLElement>(null);
@@ -419,7 +422,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
       </div>
       <div className="workspace">
         <aside className="outline">
-          <div className="panel-heading"><span>Landmarks</span><span>{visible.length}/{trajectory.events.length}</span></div>
+          <div className="panel-heading"><span>Events</span><span>{visible.length}/{trajectory.events.length}</span></div>
           <div className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events" aria-label="Search events" /><kbd>{bindingLabel(commandIds.trajectory.search)}</kbd></div>
           <div className="filters">{filterKinds.filter((kind) => kind === "all" || counts[kind]).map((kind) => <button key={kind} className={filter === kind ? "active" : ""} onClick={() => setFilter(kind)}><span>{kind}</span><b>{kind === "all" ? trajectory.events.length : counts[kind]}</b></button>)}</div>
           <nav ref={outlineRef} className="event-outline" aria-label="Trajectory landmarks">
@@ -432,12 +435,13 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
             <div className="timeline-heading"><div><h1>{trajectory.name || trajectory.id}</h1><p>{trajectory.id} · {trajectory.started_at ? new Date(trajectory.started_at).toLocaleString() : "local trajectory"}</p></div><TrajectoryTabs active={surface} onChange={openSurface} /></div>
             <ContextTrack events={trajectory.events} eventTotal={eventTotal} selectedId={selected.id} onSelect={jumpToEvent} />
           </div>
-          {surface === "transcript" && <TranscriptView events={visible} selectedId={selected.id} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} onSelect={selectEvent} />}
-          {surface === "timeline" && <VirtualList items={visible} estimateSize={118} overscan={4} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} className="timeline-events" itemKey={eventKey} renderItem={(event, index) => <TimelineCard event={event} selected={selected.id === event.id} expanded={expanded.has(event.id)} position={index + 1} total={visible.length} onSelect={() => selectEvent(event.id)} onExpand={() => toggleExpand(event.id)} />} />}
+          {surface === "transcript" && <TranscriptView events={visible} selectedId={selected.id} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} onSelect={selectEvent} onVisibleRangeChange={setVisibleRange} />}
+          {surface === "timeline" && <VirtualList items={visible} estimateSize={118} overscan={4} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} className="timeline-events" itemKey={eventKey} renderItem={(event, index) => <TimelineCard event={event} selected={selected.id === event.id} expanded={expanded.has(event.id)} position={index + 1} total={visible.length} onSelect={() => selectEvent(event.id)} onExpand={() => toggleExpand(event.id)} />} onVisibleRangeChange={setVisibleRange} />}
           {surface === "outcome" && <OutcomeView trajectory={trajectory} onSelect={(id) => { selectEvent(id); openSurface("transcript"); }} />}
         </main>
         <Inspector event={selected} raw={raw} analysis={analysis} analysisLoading={analysisLoading} analysisError={analysisError} onRetryAnalysis={() => setAnalysisVersion((version) => version + 1)} onJump={jumpToEvent} artifacts={trajectory.artifacts ?? []} sourceId={sourceId} trajectoryId={trajectory.id} selectedArtifactId={selectedArtifactId} onSelectArtifact={selectArtifact} />
       </div>
+      <TrajectoryOverview events={trajectory.events} eventTotal={eventTotal} visibleEvents={visible} selectedId={selected.id} visibleRange={surface === "outcome" ? undefined : visibleRange} onSelect={selectEvent} />
       <footer className="keybar"><span><kbd>{bindingLabel(commandIds.trajectory.next)}</kbd><kbd>{bindingLabel(commandIds.trajectory.previous)}</kbd> navigate</span>{surface === "timeline" && <span><kbd>{bindingLabel(commandIds.trajectory.toggleExpanded)}</kbd> expand</span>}{trajectory.group_id && <span><kbd>{bindingLabel(commandIds.trajectory.openGroup)}</kbd> group</span>}{analysisEventIds.length > 0 && <span><kbd>{bindingLabel(commandIds.trajectory.nextFinding)}</kbd> finding</span>}{(trajectory.artifacts?.length ?? 0) > 0 && <span><kbd>{bindingLabel(commandIds.trajectory.nextArtifact)}</kbd> artifact</span>}{trajectory.events.some(isContextEvent) && <span><kbd>{bindingLabel(commandIds.trajectory.nextContext)}</kbd> context</span>}<span><kbd>{bindingLabel(commandIds.trajectory.nextError)}</kbd> error</span><span><kbd>{bindingLabel(commandIds.trajectory.nextReward)}</kbd> reward</span><span><kbd>{bindingLabel(commandIds.trajectory.toggleRaw)}</kbd> raw</span><span><kbd>{bindingLabel(commandIds.trajectory.toggleHelp)}</kbd> shortcuts</span></footer>
       <KeymapDialog open={help} onClose={() => setHelp(false)} />
     </div>

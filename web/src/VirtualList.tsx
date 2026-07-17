@@ -1,5 +1,10 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+export interface VisibleRange {
+  start: number;
+  end: number;
+}
+
 interface VirtualListProps<T> {
   items: T[];
   estimateSize: number;
@@ -9,6 +14,7 @@ interface VirtualListProps<T> {
   className: string;
   itemKey: (item: T) => string;
   renderItem: (item: T, index: number) => ReactNode;
+  onVisibleRangeChange?: (range: VisibleRange) => void;
 }
 
 interface VirtualRowProps {
@@ -46,7 +52,7 @@ function VirtualRow({ itemId, style, onSize, children }: VirtualRowProps) {
   return <div ref={ref} className="virtual-row" style={style}>{children}</div>;
 }
 
-export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedIndex = -1, scrollRef, className, itemKey, renderItem }: VirtualListProps<T>) {
+export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedIndex = -1, scrollRef, className, itemKey, renderItem, onVisibleRangeChange }: VirtualListProps<T>) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sizesRef = useRef(new Map<string, number>());
   const [measurementVersion, setMeasurementVersion] = useState(0);
@@ -100,8 +106,16 @@ export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedInde
     setMeasurementVersion((version) => version + 1);
   }, []);
 
-  let start = Math.max(0, lowerBound(layout.offsets, viewport.offset) - 1);
-  let end = Math.min(items.length, lowerBound(layout.offsets, viewport.offset + viewport.height) + 1);
+  const startBoundary = lowerBound(layout.offsets, viewport.offset);
+  const visibleStart = Math.max(0, Math.min(items.length, layout.offsets[startBoundary] === viewport.offset ? startBoundary : startBoundary - 1));
+  const visibleEnd = Math.max(visibleStart, Math.min(items.length, lowerBound(layout.offsets, viewport.offset + viewport.height)));
+
+  useEffect(() => {
+    onVisibleRangeChange?.({ start: visibleStart, end: visibleEnd });
+  }, [onVisibleRangeChange, visibleEnd, visibleStart]);
+
+  let start = visibleStart;
+  let end = Math.min(items.length, visibleEnd + 1);
   start = Math.max(0, start - overscan);
   end = Math.min(items.length, end + overscan);
   const indexes = Array.from({ length: end - start }, (_, offset) => start + offset);

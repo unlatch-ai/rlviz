@@ -152,6 +152,8 @@ The React application has three levels of research surfaces:
   exact selected-event context evidence without interpolation
 - `ContextDetails.tsx`: selected context facts, provenance, derivation, and
   explicit retained/dropped/summarized event references
+- `TrajectoryOverview.tsx`: bounded whole-run model, interaction, and evaluation
+  density with loaded extent, viewport, and selected-event position
 - `ResearchViews.tsx`: virtualized transcript and outcome/evidence views
 - `TrajectoryTabs.tsx`: transcript, raw event timeline, and outcome switching
 - `GroupView.tsx`: trajectory cohort table and compact behavioral paths
@@ -163,7 +165,8 @@ The React application has three levels of research surfaces:
 `research.ts` derives conservative, provenance-labeled display semantics from
 canonical records. `commands.ts` is the single command/keymap registry.
 `api.ts` is the typed daemon client, `types.ts` mirrors API records, and
-`VirtualList.tsx` bounds DOM work for long lists. Structured context observations
+`VirtualList.tsx` bounds DOM work for long lists while reporting the exact
+non-overscanned viewport to the overview. Structured context observations
 take precedence over legacy `context:*` alignment landmarks; richer context
 membership is shown only when the source explicitly supplies it.
 

@@ -5,6 +5,7 @@ import { deriveMessage, deriveOutcome, deriveTool, isContextEvent } from "./rese
 import type { OutcomeSummary, ResearchMessage } from "./research";
 import type { Trajectory, TrajectoryEvent } from "./types";
 import { VirtualList } from "./VirtualList";
+import type { VisibleRange } from "./VirtualList";
 
 function DisplayValue({ value, className = "" }: { value: unknown; className?: string }) {
   if (value === undefined) return null;
@@ -36,7 +37,7 @@ function TranscriptEvent({ event, selected, onSelect }: { event: TrajectoryEvent
   </article>;
 }
 
-export function TranscriptView({ events, selectedId, selectedIndex, scrollRef, onSelect }: { events: TrajectoryEvent[]; selectedId: string; selectedIndex: number; scrollRef: RefObject<HTMLElement | null>; onSelect: (id: string) => void }) {
+export function TranscriptView({ events, selectedId, selectedIndex, scrollRef, onSelect, onVisibleRangeChange }: { events: TrajectoryEvent[]; selectedId: string; selectedIndex: number; scrollRef: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onVisibleRangeChange?: (range: VisibleRange) => void }) {
   const turnNumbers = useMemo(() => {
     let turn = 0;
     return events.map((event, index) => {
@@ -48,7 +49,7 @@ export function TranscriptView({ events, selectedId, selectedIndex, scrollRef, o
     <VirtualList items={events} estimateSize={150} overscan={4} selectedIndex={selectedIndex} scrollRef={scrollRef} className="transcript-events" itemKey={(event) => event.id} renderItem={(event, index) => <div className="transcript-row">
       {(index === 0 || deriveMessage(event)?.role?.value === "user") && <div className="turn-marker"><span>{turnNumbers[index] > 0 ? `Turn ${turnNumbers[index]}` : "Preamble"}</span><small>grouping inferred from message roles</small></div>}
       <TranscriptEvent event={event} selected={event.id === selectedId} onSelect={() => onSelect(event.id)} />
-    </div>} />
+    </div>} onVisibleRangeChange={onVisibleRangeChange} />
   </div>;
 }
 

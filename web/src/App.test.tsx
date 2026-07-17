@@ -62,6 +62,15 @@ describe("trajectory navigation", () => {
     expect(window.location.hash).toBe("#token=secret");
   });
 
+  it("selects a loaded filtered event from the overview and updates the deep link", () => {
+    render(<App initialTrajectory={sampleTrajectory} />);
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "submit_order" } });
+    fireEvent.change(screen.getByRole("slider", { name: "Trajectory overview position" }), { target: { value: "7" } });
+    const selected = sampleTrajectory.events.find((event) => event.title === "submit_order")!;
+    expect(screen.getByText("submit_order", { selector: ".selected-heading h3" })).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("event")).toBe(selected.id);
+  });
+
   it("labels the explicit bundled demo without treating normal fixtures as demo data", () => {
     const normal = render(<App initialTrajectory={sampleTrajectory} />);
     expect(screen.queryByText("Synthetic demo")).not.toBeInTheDocument();
@@ -100,13 +109,17 @@ describe("trajectory navigation", () => {
   });
 
   it("opens transcript by default and switches research surfaces with 1, 2, and 3", () => {
-    render(<App initialTrajectory={sampleTrajectory} />);
+    const { container } = render(<App initialTrajectory={sampleTrajectory} />);
+    expect(screen.getByLabelText("Trajectory overview")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Transcript/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("Trajectory transcript")).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "2" });
+    expect(screen.getByLabelText("Trajectory overview")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Events/ })).toHaveAttribute("aria-selected", "true");
     expect(document.querySelector(".event-card")).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "3" });
+    expect(screen.getByLabelText("Trajectory overview")).toBeInTheDocument();
+    expect(container.querySelector(".overview-window")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Outcome/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("Trajectory outcome")).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "1" });
@@ -117,6 +130,7 @@ describe("trajectory navigation", () => {
     const { container } = render(<App initialTrajectory={largeTrajectory} />);
     expect(container.querySelectorAll(".transcript-entry").length).toBeLessThan(30);
     expect(container.querySelectorAll(".outline-virtual button").length).toBeLessThan(30);
+    expect(container.querySelectorAll(".overview-lane i")).toHaveLength(192);
 
     fireEvent.keyDown(window, { key: "e" });
     expect(screen.getByText("Event 10000", { selector: ".selected-heading h3" })).toBeInTheDocument();

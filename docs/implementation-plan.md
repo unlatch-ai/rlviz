@@ -216,8 +216,9 @@ manifest and path-safe runner that delegates to the trusted Go validator.
 
 Status: transcript, event timeline, outcome/evidence, selected-event-first
 details, semantic landmarks, sparse source-backed context track, context-change
-jump, and long-run virtualization are implemented. A whole-trajectory minimap
-and broader real-format context evidence remain future work.
+jump, long-run virtualization, and a bounded whole-trajectory activity overview
+are implemented. Broader real-format context evidence remains ongoing quality
+work.
 
 ### Deliverables
 
@@ -264,12 +265,12 @@ trajectory API. Broader inspector and keymap customization remains.
 
 ## Near-term issue sequence
 
-1. Build a bounded, value-free source structure profile and adapter work order
-   so an agent starts from field/type evidence rather than an empty scaffold.
-2. Validate the Inspect AI and Verifiers mappings against additional upstream
+1. Validate the Inspect AI and Verifiers mappings against additional upstream
    samples as their public contracts evolve.
-3. Apply the trajectory design system to richer cohort distributions,
-   structured pair diffs, and safe declarative customization.
+2. Prune the event outline into a semantic landmark rail while keeping raw event
+   access in the timeline and whole-run activity in the overview.
+3. Extend safe declarative customization to inspector sections and portable
+   keymaps without allowing arbitrary viewer code.
 4. Validate the clean-machine install-to-open path on Linux; macOS curl,
    Homebrew, and npm paths are verified.
 

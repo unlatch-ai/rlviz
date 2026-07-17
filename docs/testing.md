@@ -53,6 +53,11 @@ filtering, deep-link restoration, partial data, and error behavior. Test the
 central command registry independently for defaults, scope, overrides,
 conflicts, and reset.
 
+Whole-trajectory overview tests assert deterministic aggregation, partial loaded
+extent, viewport and selection positions, filtered nearest-event navigation, and
+a constant 192-cell ceiling for 10,000-event runs. Virtual-list tests keep the
+reported viewport independent from overscan and forced selected-row rendering.
+
 ### Real-browser end-to-end tests
 
 Start with five Chromium flows:
