@@ -108,9 +108,24 @@ func insertRecord(ctx context.Context, tx *sql.Tx, source Source, ordinal, byteO
 		} else if source.Adapter == "" {
 			sourcePath, sourceLine, offset, length = source.Path, record.Line, byteOffset, byteLength
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, sourceID, v.ID,
+		var contextPresent int
+		var contextOperation, contextInputTokens, contextInputTokensBefore, contextCapacity, contextProvenance any
+		if v.Context != nil {
+			contextPresent = 1
+			contextOperation = nullableString(v.Context.Operation)
+			contextInputTokens = ptrValue(v.Context.InputTokens)
+			contextInputTokensBefore = ptrValue(v.Context.InputTokensBefore)
+			contextCapacity = ptrValue(v.Context.Capacity)
+			contextProvenance = nullableString(v.Context.Provenance)
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO events(
+			source_id,id,trajectory_id,sequence,kind,timestamp,parent_id,branch_id,alignment_key,state_hash,
+			search_text,source_path,source_line,byte_offset,byte_length,line,record_byte_offset,record_byte_length,raw,
+			context_present,context_operation,context_input_tokens,context_input_tokens_before,context_capacity,context_provenance
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, sourceID, v.ID,
 			v.TrajectoryID, v.Sequence, v.Kind, v.Timestamp, v.ParentID, v.BranchID, v.AlignmentKey, v.StateHash,
-			string(record.Raw), sourcePath, sourceLine, offset, length, record.Line, byteOffset, byteLength, []byte(record.Raw))
+			string(record.Raw), sourcePath, sourceLine, offset, length, record.Line, byteOffset, byteLength, []byte(record.Raw),
+			contextPresent, contextOperation, contextInputTokens, contextInputTokensBefore, contextCapacity, contextProvenance)
 		return err
 	case *model.Signal:
 		_, err := tx.ExecContext(ctx, `INSERT INTO signals VALUES(?,?,?,?,?,?,?,?,?,?)`, sourceID, v.ID, v.TrajectoryID,
@@ -132,6 +147,13 @@ func ptrValue(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func nullableString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func recordID(value any) string {

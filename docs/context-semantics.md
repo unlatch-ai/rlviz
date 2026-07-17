@@ -79,13 +79,21 @@ cached, and cumulative token totals must not be mapped into input occupancy.
 
 ## Compatibility and implementation sequence
 
-The protocol and reference-adapter portion is implemented. Remaining viewer
-work is intentionally sequenced after the contract:
+The protocol, reference adapters, sparse index, comparison fallback, and viewer
+surface are implemented. The context rail positions discrete observations by
+event order, labels gaps as unobserved, and never draws an interpolated usage
+line. Exact lifecycle facts, provenance, derivation, summaries, and explicit
+membership references remain available in the selected-event Inspector.
 
-1. Index structured context observations for bounded sparse queries.
-2. Add a context surface that shows observations and unknown gaps without
-   interpolation.
-3. Add long-run, pagination, keyboard, provenance, and source-link tests.
+Long-run and pagination coverage should continue expanding as representative
+real traces become available. Any denser visualization still requires evidence
+that its encoded quantity is source-native or deterministically derived.
+
+SQLite schema version 5 stores the raw event unchanged and separately indexes
+whether structured context exists plus its operation, token counts, capacity,
+and provenance. `GET /api/v1/indexed/events?...&context=true` returns structured
+context observations plus legacy `context:*` landmarks; `context=false` returns
+the complement. The parameter accepts only lowercase `true` or `false`.
 
 The canonical stream remains pre-stable. New RLViz readers accept streams that
 omit `context`, and database storage retains the raw event envelope. Older

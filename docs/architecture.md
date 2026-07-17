@@ -124,10 +124,12 @@ removable findings and signals. Alignment and compact paths are derived views;
 they do not rewrite the source or imply that independently sampled trajectories
 were literal execution branches.
 
-The current generic event envelope is adequate for basic viewing but does not
-yet standardize message roles, tool spans, context compaction, verifier
-evidence, or context-window accounting. Those semantics must be designed from
-real formats before a protocol revision. See `data-model.md`.
+The generic event envelope supports an optional, sparse structured context
+observation for source-backed input-token usage and explicit lifecycle changes.
+It does not infer membership or interpolate unknown context usage. Message
+roles, tool spans, and verifier evidence remain source-shaped or derived display
+semantics pending broader real-format evidence. See `data-model.md` and
+`context-semantics.md`.
 
 ## Frontend structure
 
@@ -135,6 +137,10 @@ The React application has three levels of research surfaces:
 
 - `App.tsx`: trajectory loading, routing, shared event selection, landmark rail,
   and selected-event-first inspector
+- `ContextTrack.tsx`: sparse context observations, lifecycle navigation, and
+  exact selected-event context evidence without interpolation
+- `ContextDetails.tsx`: selected context facts, provenance, derivation, and
+  explicit retained/dropped/summarized event references
 - `ResearchViews.tsx`: virtualized transcript and outcome/evidence views
 - `TrajectoryTabs.tsx`: transcript, raw event timeline, and outcome switching
 - `GroupView.tsx`: trajectory cohort table and compact behavioral paths
@@ -146,9 +152,16 @@ The React application has three levels of research surfaces:
 `research.ts` derives conservative, provenance-labeled display semantics from
 canonical records. `commands.ts` is the single command/keymap registry.
 `api.ts` is the typed daemon client, `types.ts` mirrors API records, and
-`VirtualList.tsx` bounds DOM work for long lists. Context compaction is currently
-recognized only through an explicit canonical `context:*` alignment key; richer
-context membership remains a future protocol decision.
+`VirtualList.tsx` bounds DOM work for long lists. Structured context observations
+take precedence over legacy `context:*` alignment landmarks; richer context
+membership is shown only when the source explicitly supplies it.
+
+The SQLite schema is currently version 5. Event rows retain their complete raw
+canonical envelope while indexing nullable context operation, token, capacity,
+and provenance fields for sparse access. `context_present` distinguishes a
+structured observation from absent data. The indexed events API accepts strict
+`context=true` and `context=false` filters; `true` includes legacy
+`context:*` landmarks for compatibility, and each event appears at most once.
 
 ## Security invariants
 

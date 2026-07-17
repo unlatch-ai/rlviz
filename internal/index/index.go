@@ -75,14 +75,45 @@ func (i *Index) migrate(ctx context.Context) error {
 			}
 		}
 	}
-	if _, err := i.db.ExecContext(ctx, `PRAGMA user_version=4`); err != nil {
+	for _, column := range []struct {
+		name       string
+		definition string
+	}{
+		{"context_present", "INTEGER NOT NULL DEFAULT 0"},
+		{"context_operation", "TEXT"},
+		{"context_input_tokens", "INTEGER"},
+		{"context_input_tokens_before", "INTEGER"},
+		{"context_capacity", "INTEGER"},
+		{"context_provenance", "TEXT"},
+	} {
+		present, err := i.tableColumn(ctx, "events", column.name)
+		if err != nil {
+			return err
+		}
+		if !present {
+			if _, err := i.db.ExecContext(ctx, `ALTER TABLE events ADD COLUMN `+column.name+` `+column.definition); err != nil {
+				return fmt.Errorf("add events.%s: %w", column.name, err)
+			}
+		}
+	}
+	if _, err := i.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS events_context ON events(source_id,trajectory_id,context_present,sequence)`); err != nil {
+		return fmt.Errorf("create context event index: %w", err)
+	}
+	if _, err := i.db.ExecContext(ctx, `PRAGMA user_version=5`); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (i *Index) sourceColumn(ctx context.Context, name string) (bool, error) {
-	rows, err := i.db.QueryContext(ctx, `PRAGMA table_info(sources)`)
+	return i.tableColumn(ctx, "sources", name)
+}
+
+func (i *Index) tableColumn(ctx context.Context, table, name string) (bool, error) {
+	if table != "sources" && table != "events" {
+		return false, fmt.Errorf("unsupported table %q", table)
+	}
+	rows, err := i.db.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
 	if err != nil {
 		return false, err
 	}

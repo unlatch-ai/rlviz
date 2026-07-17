@@ -425,8 +425,47 @@ func TestSQLitePragmas(t *testing.T) {
 	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if strings.ToLower(journal) != "wal" || foreignKeys != 1 || busy != 5000 || version != 4 {
+	if strings.ToLower(journal) != "wal" || foreignKeys != 1 || busy != 5000 || version != 5 {
 		t.Fatalf("pragmas: journal=%s foreign=%d busy=%d version=%d", journal, foreignKeys, busy, version)
+	}
+}
+
+func TestContextEventsAreIndexedAndFilteredWithLegacyFallback(t *testing.T) {
+	idx := openTestIndex(t)
+	inputTokens, inputTokensBefore, capacity := int64(42), int64(90), int64(100)
+	records := []any{
+		&model.Run{RecordType: model.RecordRun, ID: "run-context"},
+		&model.Case{RecordType: model.RecordCase, ID: "case-context", RunID: "run-context"},
+		&model.Group{RecordType: model.RecordGroup, ID: "group-context", CaseID: "case-context"},
+		&model.Trajectory{RecordType: model.RecordTrajectory, ID: "trajectory-context", GroupID: "group-context"},
+		&model.Event{RecordType: model.RecordEvent, ID: "ordinary", TrajectoryID: "trajectory-context", Sequence: 0, Kind: "message"},
+		&model.Event{RecordType: model.RecordEvent, ID: "structured", TrajectoryID: "trajectory-context", Sequence: 1, Kind: "state", AlignmentKey: "context:compaction", Context: &model.Context{Operation: "compaction", InputTokens: &inputTokens, InputTokensBefore: &inputTokensBefore, Capacity: &capacity, Provenance: "source_native"}},
+		&model.Event{RecordType: model.RecordEvent, ID: "legacy", TrajectoryID: "trajectory-context", Sequence: 2, Kind: "state", AlignmentKey: "context:restore"},
+	}
+	stream := encodeFixture(t, records, 0)
+	if _, err := idx.Replace(t.Context(), Source{ID: "context"}, bytes.NewReader(stream)); err != nil {
+		t.Fatal(err)
+	}
+
+	var present int
+	var operation, provenance sql.NullString
+	var tokens, tokensBefore, storedCapacity sql.NullInt64
+	if err := idx.db.QueryRow(`SELECT context_present,context_operation,context_input_tokens,context_input_tokens_before,context_capacity,context_provenance FROM events WHERE source_id='context' AND id='structured'`).Scan(&present, &operation, &tokens, &tokensBefore, &storedCapacity, &provenance); err != nil {
+		t.Fatal(err)
+	}
+	if present != 1 || operation.String != "compaction" || tokens.Int64 != 42 || tokensBefore.Int64 != 90 || storedCapacity.Int64 != 100 || provenance.String != "source_native" {
+		t.Fatalf("indexed context present=%d operation=%v tokens=%v tokens_before=%v capacity=%v provenance=%v", present, operation, tokens, tokensBefore, storedCapacity, provenance)
+	}
+
+	contextOnly := true
+	page, err := idx.Events(t.Context(), EventQuery{SourceID: "context", TrajectoryID: "trajectory-context", ContextOnly: &contextOnly})
+	if err != nil || page.Total != 2 || len(page.Events) != 2 || page.Events[0].Value.ID != "structured" || page.Events[1].Value.ID != "legacy" {
+		t.Fatalf("context page=%#v err=%v", page, err)
+	}
+	contextOnly = false
+	page, err = idx.Events(t.Context(), EventQuery{SourceID: "context", TrajectoryID: "trajectory-context", ContextOnly: &contextOnly})
+	if err != nil || page.Total != 1 || len(page.Events) != 1 || page.Events[0].Value.ID != "ordinary" {
+		t.Fatalf("non-context page=%#v err=%v", page, err)
 	}
 }
 
@@ -461,12 +500,63 @@ func TestOpenMigratesPreProgressiveSourceState(t *testing.T) {
 		}
 	}
 	var version int
-	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 4 {
+	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 5 {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 	var presentationTable string
 	if err := idx.db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='source_presentations'`).Scan(&presentationTable); err != nil || presentationTable != "source_presentations" {
 		t.Fatalf("presentation migration=%q err=%v", presentationTable, err)
+	}
+}
+
+func TestOpenMigratesLegacyEventsWithoutDataLoss(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v4.sqlite")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyRaw := `{"record_type":"event","id":"legacy","trajectory_id":"trajectory-a","sequence":0,"kind":"state","alignment_key":"context:compaction"}`
+	_, err = db.Exec(`CREATE TABLE events (
+      source_id TEXT NOT NULL, id TEXT NOT NULL, trajectory_id TEXT NOT NULL, sequence INTEGER NOT NULL,
+      kind TEXT NOT NULL, timestamp TEXT NOT NULL, parent_id TEXT NOT NULL, branch_id TEXT NOT NULL,
+      alignment_key TEXT NOT NULL, state_hash TEXT NOT NULL, search_text TEXT NOT NULL,
+      source_path TEXT, source_line INTEGER, byte_offset INTEGER, byte_length INTEGER,
+      line INTEGER NOT NULL, record_byte_offset INTEGER NOT NULL, record_byte_length INTEGER NOT NULL, raw BLOB NOT NULL,
+      PRIMARY KEY(source_id,id), UNIQUE(source_id,trajectory_id,sequence)
+    ); INSERT INTO events VALUES('legacy-source','legacy','trajectory-a',0,'state','','','','context:compaction','',?,'/trace.ndjson',3,5,7,9,11,13,?);
+    PRAGMA user_version=4;`, legacyRaw, []byte(legacyRaw))
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	idx, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+	var version, present int
+	var sourcePath string
+	var sourceLine, byteOffset, byteLength, line, recordByteOffset, recordByteLength int
+	var searchText string
+	var raw []byte
+	if err := idx.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.db.QueryRow(`SELECT context_present,search_text,source_path,source_line,byte_offset,byte_length,line,record_byte_offset,record_byte_length,raw FROM events WHERE id='legacy'`).Scan(
+		&present, &searchText, &sourcePath, &sourceLine, &byteOffset, &byteLength, &line, &recordByteOffset, &recordByteLength, &raw,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if version != 5 || present != 0 || searchText != legacyRaw || sourcePath != "/trace.ndjson" || sourceLine != 3 || byteOffset != 5 || byteLength != 7 || line != 9 || recordByteOffset != 11 || recordByteLength != 13 || string(raw) != legacyRaw {
+		t.Fatalf("migration changed legacy row: version=%d present=%d search=%q source=%s:%d+%d/%d record=%d+%d/%d raw=%s", version, present, searchText, sourcePath, sourceLine, byteOffset, byteLength, line, recordByteOffset, recordByteLength, raw)
+	}
+	var indexName string
+	if err := idx.db.QueryRow(`SELECT name FROM sqlite_master WHERE type='index' AND name='events_context'`).Scan(&indexName); err != nil || indexName != "events_context" {
+		t.Fatalf("context index=%q err=%v", indexName, err)
 	}
 }
 

@@ -301,6 +301,13 @@ func (i *Index) Events(ctx context.Context, query EventQuery) (EventPage, error)
 		where = append(where, `search_text LIKE ? ESCAPE '\' COLLATE NOCASE`)
 		args = append(args, "%"+escapeLike(query.Query)+"%")
 	}
+	if query.ContextOnly != nil {
+		if *query.ContextOnly {
+			where = append(where, `(context_present=1 OR alignment_key LIKE 'context:%')`)
+		} else {
+			where = append(where, `(context_present=0 AND alignment_key NOT LIKE 'context:%')`)
+		}
+	}
 	var page EventPage
 	if err := i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE `+strings.Join(where, " AND "), args...).Scan(&page.Total); err != nil {
 		return EventPage{}, fmt.Errorf("count events: %w", err)

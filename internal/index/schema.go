@@ -33,7 +33,10 @@ CREATE TABLE IF NOT EXISTS events (
   kind TEXT NOT NULL, timestamp TEXT NOT NULL, parent_id TEXT NOT NULL, branch_id TEXT NOT NULL,
   alignment_key TEXT NOT NULL, state_hash TEXT NOT NULL, search_text TEXT NOT NULL,
   source_path TEXT, source_line INTEGER, byte_offset INTEGER, byte_length INTEGER,
-  line INTEGER NOT NULL, record_byte_offset INTEGER NOT NULL, record_byte_length INTEGER NOT NULL, raw BLOB NOT NULL, PRIMARY KEY(source_id,id),
+  line INTEGER NOT NULL, record_byte_offset INTEGER NOT NULL, record_byte_length INTEGER NOT NULL, raw BLOB NOT NULL,
+  context_present INTEGER NOT NULL DEFAULT 0, context_operation TEXT, context_input_tokens INTEGER,
+  context_input_tokens_before INTEGER, context_capacity INTEGER, context_provenance TEXT,
+  PRIMARY KEY(source_id,id),
   UNIQUE(source_id,trajectory_id,sequence),
   FOREIGN KEY(source_id) REFERENCES sources(id) ON DELETE CASCADE
 );

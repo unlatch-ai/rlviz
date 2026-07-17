@@ -184,7 +184,7 @@ func (api *indexedAPI) trajectory(response http.ResponseWriter, request *http.Re
 }
 
 func (api *indexedAPI) events(response http.ResponseWriter, request *http.Request) {
-	allowed := map[string]bool{"trajectory": true, "trajectory_id": true, "after_sequence": true, "limit": true, "kind": true, "q": true}
+	allowed := map[string]bool{"trajectory": true, "trajectory_id": true, "after_sequence": true, "limit": true, "kind": true, "q": true, "context": true}
 	params, ok := api.trajectoryParams(response, request, allowed)
 	if !ok {
 		return
@@ -213,7 +213,12 @@ func (api *indexedAPI) events(response http.ResponseWriter, request *http.Reques
 		writeJSONError(response, http.StatusBadRequest, "invalid_query", err)
 		return
 	}
-	base := rolloutindex.EventQuery{SourceID: params.sourceID, TrajectoryID: params.trajectoryID, Kinds: kinds, Query: query}
+	contextOnly, err := optionalBool(values, "context")
+	if err != nil {
+		writeJSONError(response, http.StatusBadRequest, "invalid_query", err)
+		return
+	}
+	base := rolloutindex.EventQuery{SourceID: params.sourceID, TrajectoryID: params.trajectoryID, Kinds: kinds, Query: query, ContextOnly: contextOnly}
 	requested := base
 	requested.AfterSequence = after
 	requested.Limit = limit
@@ -476,6 +481,18 @@ func optionalNonnegativeInt64(values url.Values, name string) (*int64, error) {
 	if err != nil || value < 0 {
 		return nil, fmt.Errorf("%s must be a non-negative integer", name)
 	}
+	return &value, nil
+}
+
+func optionalBool(values url.Values, name string) (*bool, error) {
+	raw, err := optionalSingle(values, name)
+	if err != nil || raw == "" {
+		return nil, err
+	}
+	if raw != "true" && raw != "false" {
+		return nil, fmt.Errorf("%s must be true or false", name)
+	}
+	value := raw == "true"
 	return &value, nil
 }
 

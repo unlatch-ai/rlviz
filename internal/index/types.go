@@ -77,6 +77,7 @@ type EventQuery struct {
 	Limit         int
 	Kinds         []string
 	Query         string
+	ContextOnly   *bool
 }
 
 type EventPage struct {

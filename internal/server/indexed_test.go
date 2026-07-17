@@ -45,6 +45,29 @@ func testIndexedHandler(t *testing.T) http.Handler {
 	return NewIndexedHandler(store, "secret")
 }
 
+func testIndexedContextHandler(t *testing.T) http.Handler {
+	t.Helper()
+	store, err := rolloutindex.Open(filepath.Join(t.TempDir(), "rlviz-context.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	path := filepath.Join("..", "..", "fixtures", "canonical", "context.ndjson")
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Replace(t.Context(), rolloutindex.Source{ID: "source-context", Path: path, Fingerprint: "context-fixture", Size: info.Size(), ModTime: time.Unix(1, 0)}, file); err != nil {
+		t.Fatal(err)
+	}
+	return NewIndexedHandler(store, "secret")
+}
+
 func indexedRequest(t *testing.T, handler http.Handler, method, target string, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(method, target, nil)
@@ -243,6 +266,26 @@ func TestIndexedEventsPaginationSearchAndKindFilter(t *testing.T) {
 	}
 }
 
+func TestIndexedEventsContextFilter(t *testing.T) {
+	handler := testIndexedContextHandler(t)
+	for _, test := range []struct {
+		value string
+		total float64
+	}{
+		{"true", 5},
+		{"false", 2},
+	} {
+		response := indexedRequest(t, handler, http.MethodGet, "/api/v1/indexed/events?trajectory=source-context&trajectory_id=trajectory-context&context="+test.value, true)
+		if response.Code != http.StatusOK {
+			t.Fatalf("context=%s status=%d body=%s", test.value, response.Code, response.Body.String())
+		}
+		payload := decodeIndexedResponse(t, response)
+		if payload["page"].(map[string]any)["total"] != test.total || float64(len(payload["events"].([]any))) != test.total {
+			t.Fatalf("context=%s payload=%#v", test.value, payload)
+		}
+	}
+}
+
 func TestIndexedQueryValidationIsStrict(t *testing.T) {
 	handler := testIndexedHandler(t)
 	tests := []string{
@@ -250,6 +293,9 @@ func TestIndexedQueryValidationIsStrict(t *testing.T) {
 		"/api/v1/indexed/events?trajectory=source-group&after_sequence=-1",
 		"/api/v1/indexed/events?trajectory=source-group&unknown=x",
 		"/api/v1/indexed/events?trajectory=source-group&trajectory=other",
+		"/api/v1/indexed/events?trajectory=source-group&context=1",
+		"/api/v1/indexed/events?trajectory=source-group&context=True",
+		"/api/v1/indexed/events?trajectory=source-group&context=true&context=false",
 	}
 	for _, target := range tests {
 		response := indexedRequest(t, handler, http.MethodGet, target, true)

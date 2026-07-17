@@ -4,6 +4,8 @@ import { ArtifactPanel } from "./ArtifactPanel";
 import { loadAnalysis, loadChildPage, loadComparison, loadEventPage, loadGroup, loadGroupPaths, loadTrajectory } from "./api";
 import { ComparisonView } from "./ComparisonView";
 import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./commands";
+import { ContextDetails } from "./ContextDetails";
+import { ContextTrack } from "./ContextTrack";
 import { duration, eventText, json, payload, preview, time, title } from "./format";
 import { GroupView } from "./GroupView";
 import { KeymapDialog } from "./KeymapDialog";
@@ -93,6 +95,7 @@ function Inspector({ event, raw, analysis, analysisLoading, analysisError, onRet
       <div className="inspector-scroll">
         {raw ? <section><h4>Raw normalized record</h4><pre className="raw-json">{json(event.raw ?? event)}</pre></section> : <>
           <section><h4>Properties</h4><dl>{entries.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl></section>
+          <ContextDetails event={event} onJump={onJump} />
           {event.source && <section><h4>Source</h4><div className="source-path">{event.source.path || "Unknown source"}</div><div className="source-detail">{event.source.line && `line ${event.source.line}`}{(event.source.byte_offset ?? event.source.byte_start) !== undefined && ` · bytes ${event.source.byte_offset ?? event.source.byte_start}–${event.source.byte_length !== undefined ? (event.source.byte_offset ?? 0) + event.source.byte_length : (event.source.byte_end ?? "?")}`}</div></section>}
           {event.input !== undefined && <section><h4>Input</h4><pre className="raw-json compact">{json(event.input)}</pre></section>}
           {event.output !== undefined && <section><h4>Output</h4><pre className="raw-json compact">{json(event.output)}</pre></section>}
@@ -425,7 +428,10 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
           {!visible.length && <div className="no-results">No matching events</div>}
         </aside>
         <main ref={timelineRef} className="timeline" aria-label="Trajectory workspace">
-          <div className="timeline-heading"><div><h1>{trajectory.name || trajectory.id}</h1><p>{trajectory.id} · {trajectory.started_at ? new Date(trajectory.started_at).toLocaleString() : "local trajectory"}</p></div><TrajectoryTabs active={surface} onChange={openSurface} /></div>
+          <div className="trajectory-header">
+            <div className="timeline-heading"><div><h1>{trajectory.name || trajectory.id}</h1><p>{trajectory.id} · {trajectory.started_at ? new Date(trajectory.started_at).toLocaleString() : "local trajectory"}</p></div><TrajectoryTabs active={surface} onChange={openSurface} /></div>
+            <ContextTrack events={trajectory.events} eventTotal={eventTotal} selectedId={selected.id} onSelect={jumpToEvent} />
+          </div>
           {surface === "transcript" && <TranscriptView events={visible} selectedId={selected.id} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} onSelect={selectEvent} />}
           {surface === "timeline" && <VirtualList items={visible} estimateSize={118} overscan={4} selectedIndex={selectedVisibleIndex} scrollRef={timelineRef} className="timeline-events" itemKey={eventKey} renderItem={(event, index) => <TimelineCard event={event} selected={selected.id === event.id} expanded={expanded.has(event.id)} position={index + 1} total={visible.length} onSelect={() => selectEvent(event.id)} onExpand={() => toggleExpand(event.id)} />} />}
           {surface === "outcome" && <OutcomeView trajectory={trajectory} onSelect={(id) => { selectEvent(id); openSurface("transcript"); }} />}
