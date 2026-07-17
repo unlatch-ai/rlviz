@@ -191,7 +191,8 @@ copying sample records. Bundled agent instructions consume that profile before
 targeted source inspection, enforce implementation and explicit review before
 trust, retain the source-aware `--from` handoff, and use JSON for every
 machine-operated command. JSON-mode setup usage errors use the stable
-diagnostic envelope.
+diagnostic envelope. Generated adapter projects include a strict synthetic-case
+manifest and path-safe runner that delegates to the trusted Go validator.
 
 ### Deliverables
 
@@ -202,6 +203,7 @@ diagnostic envelope.
 - Explicitly reviewed agent-integration write/setup workflow
 - Explicit supported-format documentation
 - Improved unsupported-format and adapter-scaffold guidance
+- Reviewed synthetic-fixture harness for generated adapters (implemented)
 
 ### Exit criteria
 

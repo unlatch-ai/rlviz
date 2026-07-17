@@ -51,6 +51,8 @@ func ScaffoldPython(destination string, options ScaffoldOptions) ([]string, erro
 		files = []scaffoldFile{
 			{ManifestName, strings.ReplaceAll(pythonManifest, "{{NAME}}", options.Name)},
 			{"adapter.py", pythonAdapter},
+			{"test_adapter.py", pythonAdapterTest},
+			{"testdata/cases.json", adapterTestCases},
 			{"README.md", strings.ReplaceAll(pythonReadme, "{{NAME}}", options.Name)},
 		}
 	}
@@ -80,9 +82,13 @@ func ScaffoldPython(destination string, options ScaffoldOptions) ([]string, erro
 		return nil, err
 	}
 	created := make([]string, 0, len(files))
+	createdDirectories := []string{}
 	rollback := func() {
 		for _, path := range created {
 			_ = os.Remove(path)
+		}
+		for index := len(createdDirectories) - 1; index >= 0; index-- {
+			_ = os.Remove(createdDirectories[index])
 		}
 		if createdDestination {
 			_ = os.Remove(abs)
@@ -90,6 +96,27 @@ func ScaffoldPython(destination string, options ScaffoldOptions) ([]string, erro
 	}
 	for _, file := range files {
 		path := filepath.Join(abs, file.name)
+		parent := filepath.Dir(path)
+		if parent != abs {
+			info, statErr := os.Lstat(parent)
+			switch {
+			case errors.Is(statErr, os.ErrNotExist):
+				if err := os.Mkdir(parent, 0o755); err != nil {
+					rollback()
+					return nil, fmt.Errorf("create scaffold directory %s: %w", parent, err)
+				}
+				createdDirectories = append(createdDirectories, parent)
+			case statErr != nil:
+				rollback()
+				return nil, fmt.Errorf("inspect scaffold directory %s: %w", parent, statErr)
+			case info.Mode()&os.ModeSymlink != 0:
+				rollback()
+				return nil, fmt.Errorf("scaffold directory %s is a symbolic link", parent)
+			case !info.IsDir():
+				rollback()
+				return nil, fmt.Errorf("scaffold path %s is not a directory", parent)
+			}
+		}
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			rollback()
@@ -253,6 +280,109 @@ if __name__ == "__main__":
         raise SystemExit(1)
 `
 
+const pythonAdapterTest = `#!/usr/bin/env python3
+"""Run reviewed synthetic fixtures through RLViz's trusted validator."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent
+TESTDATA = (ROOT / "testdata").resolve()
+CASES_PATH = TESTDATA / "cases.json"
+
+def fail(message):
+    raise ValueError(message)
+
+def fixture_path(value, index):
+    if not isinstance(value, str) or not value:
+        fail(f"case {index}: source must be a non-empty relative path")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        fail(f"case {index}: source must stay inside testdata")
+    try:
+        resolved = (TESTDATA / relative).resolve(strict=True)
+    except OSError as error:
+        fail(f"case {index}: cannot resolve fixture {value!r}: {error}")
+    try:
+        common = os.path.commonpath((str(TESTDATA), str(resolved)))
+    except ValueError:
+        common = ""
+    if common != str(TESTDATA) or not resolved.is_file():
+        fail(f"case {index}: fixture must be a file inside testdata")
+    return resolved
+
+def load_cases():
+    with CASES_PATH.open("r", encoding="utf-8") as handle:
+        document = json.load(handle)
+    if not isinstance(document, dict) or set(document) != {"schema_version", "cases"}:
+        fail("testdata/cases.json must contain only schema_version and cases")
+    version = document["schema_version"]
+    if isinstance(version, bool) or version != 1 or not isinstance(document["cases"], list):
+        fail("testdata/cases.json must use schema_version 1 with a cases array")
+    if not document["cases"]:
+        fail("no adapter cases; add synthetic fixtures to testdata/cases.json")
+    cases = []
+    for index, case in enumerate(document["cases"], start=1):
+        if not isinstance(case, dict) or set(case) != {"source", "expected_format", "min_records"}:
+            fail(f"case {index}: expected source, expected_format, and min_records")
+        expected_format = case["expected_format"]
+        minimum = case["min_records"]
+        if not isinstance(expected_format, str) or not expected_format:
+            fail(f"case {index}: expected_format must be a non-empty string")
+        if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+            fail(f"case {index}: min_records must be a positive integer")
+        cases.append((case["source"], fixture_path(case["source"], index), expected_format, minimum))
+    return cases
+
+def validate_case(binary, label, source, expected_format, minimum):
+    command = [binary, "plugin", "validate", "--json", str(ROOT), str(source)]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=45,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        fail(f"{label}: validation failed: {detail}")
+    try:
+        report = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        fail(f"{label}: validator returned invalid JSON: {error}")
+    if not isinstance(report, dict):
+        fail(f"{label}: validator result must be an object")
+    if report.get("deterministic") is not True:
+        fail(f"{label}: validator did not report deterministic output")
+    if report.get("format") != expected_format:
+        fail(f"{label}: format {report.get('format')!r}, expected {expected_format!r}")
+    records = report.get("records")
+    if isinstance(records, bool) or not isinstance(records, int) or records < minimum:
+        fail(f"{label}: records {records!r}, expected at least {minimum}")
+    print(f"ok {label}: {records} records, {expected_format}")
+
+def main():
+    binary = os.environ.get("RLVIZ_BIN", "rlviz")
+    if not binary:
+        fail("RLVIZ_BIN must not be empty")
+    for label, source, expected_format, minimum in load_cases():
+        validate_case(binary, label, source, expected_format, minimum)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(1)
+`
+
+const adapterTestCases = `{"schema_version":1,"cases":[]}
+`
+
 const pythonReadme = `# {{NAME}}
 
 This is executable local adapter code. RLViz did not copy the source trace or
@@ -268,13 +398,16 @@ Implementation checklist:
    children, preserve source order, and end with one ` + "`complete`" + ` record.
 4. Use source-native IDs or ` + "`stable_id`" + `; never derive IDs from wall time.
 5. Put rewards, grader results, latency, tokens, and pass/fail in signals.
-6. Create only small synthetic fixtures under ` + "`testdata/`" + `. Do not copy a
-   customer trace into this plugin or commit proprietary model output.
+6. Create only small synthetic fixtures under ` + "`testdata/`" + ` and list them in
+   ` + "`testdata/cases.json`" + `. Do not copy a customer trace into this plugin or
+   commit proprietary model output.
 
-After review, validate it with:
+After reviewing the manifest, executable files, case manifest, and fixtures,
+trust the complete digest and run the synthetic cases before the private source:
 
-    rlviz plugin trust .
-    rlviz plugin validate . /path/to/sample
+    rlviz plugin trust --json .
+    python3 test_adapter.py
+    rlviz plugin validate --json . /path/to/sample
 
 Any code change produces a new digest and intentionally requires review and
 trust again. See docs/adapter-authoring.md in the RLViz repository for the full

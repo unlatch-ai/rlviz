@@ -695,7 +695,7 @@ func TestSourceRootAndScaffold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{ManifestName, "adapter.py", "README.md"}; !reflect.DeepEqual(files, want) {
+	if want := []string{ManifestName, "adapter.py", "test_adapter.py", "testdata/cases.json", "README.md"}; !reflect.DeepEqual(files, want) {
 		t.Fatalf("files=%#v want=%#v", files, want)
 	}
 	if _, err := Load(destination); err != nil {
@@ -729,6 +729,140 @@ func TestSourceRootAndScaffold(t *testing.T) {
 	}
 }
 
+func TestScaffoldAdapterRunnerUsesStableSafeCases(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("executable fixture semantics")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is unavailable")
+	}
+	root := t.TempDir()
+	destination := filepath.Join(root, "adapter")
+	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "runner-test"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"first.source", "second;unsafe.source"} {
+		writeFile(t, filepath.Join(destination, "testdata", name), "synthetic\n")
+	}
+	cases := `{"schema_version":1,"cases":[{"source":"first.source","expected_format":"customer-v2","min_records":4},{"source":"second;unsafe.source","expected_format":"customer-v2","min_records":5}]}
+`
+	writeExistingFile(t, filepath.Join(destination, "testdata", "cases.json"), cases)
+	logPath := filepath.Join(root, "argv.jsonl")
+	fake := filepath.Join(root, "fake-rlviz")
+	fakeScript := `#!` + python + `
+import json
+import os
+from pathlib import Path
+import sys
+
+with open(os.environ["RLVIZ_FAKE_LOG"], "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(sys.argv[1:]) + "\n")
+mode = os.environ.get("RLVIZ_FAKE_MODE", "ok")
+if mode == "malformed":
+    print("not-json")
+elif mode == "wrong-format":
+    print(json.dumps({"format":"other","records":9,"deterministic":True}))
+elif mode == "too-few":
+    print(json.dumps({"format":"customer-v2","records":1,"deterministic":True}))
+else:
+    count = 4 if Path(sys.argv[-1]).name == "first.source" else 5
+    print(json.dumps({"format":"customer-v2","records":count,"deterministic":True}))
+`
+	if err := os.WriteFile(fake, []byte(fakeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	run := exec.Command(python, "test_adapter.py")
+	run.Dir = destination
+	run.Env = append(os.Environ(), "RLVIZ_BIN="+fake, "RLVIZ_FAKE_LOG="+logPath)
+	output, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("runner failed: %v\n%s", err, output)
+	}
+	if got := string(output); !strings.Contains(got, "ok first.source") || !strings.Contains(got, "ok second;unsafe.source") {
+		t.Fatalf("runner output=%q", got)
+	}
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(logData)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("argv log=%q", logData)
+	}
+	resolvedDestination, err := filepath.EvalSymlinks(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, line := range lines {
+		var argv []string
+		if err := json.Unmarshal([]byte(line), &argv); err != nil {
+			t.Fatal(err)
+		}
+		if len(argv) != 5 || argv[0] != "plugin" || argv[1] != "validate" || argv[2] != "--json" || argv[3] != resolvedDestination {
+			t.Fatalf("argv[%d]=%#v", index, argv)
+		}
+	}
+	if !strings.HasSuffix(lines[0], `first.source"]`) || !strings.HasSuffix(lines[1], `second;unsafe.source"]`) {
+		t.Fatalf("case order changed: %q", logData)
+	}
+}
+
+func TestScaffoldAdapterRunnerRejectsUnsafeOrInvalidCases(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is unavailable")
+	}
+	root := t.TempDir()
+	destination := filepath.Join(root, "adapter")
+	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "runner-negative"}); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(root, "fake-rlviz")
+	if err := os.WriteFile(fake, []byte("#!"+python+"\nimport os\nprint(os.environ.get('RLVIZ_FAKE_OUTPUT', '{}'))\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fixture := filepath.Join(destination, "testdata", "sample.source")
+	writeFile(t, fixture, "synthetic\n")
+	outside := filepath.Join(root, "outside.source")
+	writeFile(t, outside, "private\n")
+	link := filepath.Join(destination, "testdata", "escape.source")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		cases  string
+		output string
+		want   string
+	}{
+		{name: "zero cases", cases: `{"schema_version":1,"cases":[]}`, want: "no adapter cases"},
+		{name: "traversal", cases: `{"schema_version":1,"cases":[{"source":"../outside.source","expected_format":"x","min_records":1}]}`, want: "must stay inside testdata"},
+		{name: "symlink escape", cases: `{"schema_version":1,"cases":[{"source":"escape.source","expected_format":"x","min_records":1}]}`, want: "must be a file inside testdata"},
+		{name: "malformed result", cases: `{"schema_version":1,"cases":[{"source":"sample.source","expected_format":"x","min_records":1}]}`, output: "not-json", want: "invalid JSON"},
+		{name: "nondeterministic result", cases: `{"schema_version":1,"cases":[{"source":"sample.source","expected_format":"x","min_records":1}]}`, output: `{"format":"x","records":2,"deterministic":false}`, want: "did not report deterministic"},
+		{name: "wrong format", cases: `{"schema_version":1,"cases":[{"source":"sample.source","expected_format":"x","min_records":1}]}`, output: `{"format":"y","records":2,"deterministic":true}`, want: "expected 'x'"},
+		{name: "too few records", cases: `{"schema_version":1,"cases":[{"source":"sample.source","expected_format":"x","min_records":3}]}`, output: `{"format":"x","records":2,"deterministic":true}`, want: "expected at least 3"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			writeExistingFile(t, filepath.Join(destination, "testdata", "cases.json"), test.cases+"\n")
+			run := exec.Command(python, "test_adapter.py")
+			run.Dir = destination
+			run.Env = append(os.Environ(), "RLVIZ_BIN="+fake, "RLVIZ_FAKE_OUTPUT="+test.output)
+			output, err := run.CombinedOutput()
+			if err == nil || !strings.Contains(string(output), test.want) {
+				t.Fatalf("error=%v output=%q, want %q", err, output, test.want)
+			}
+		})
+	}
+}
+
 func TestScaffoldRefusesSymlinkAndPreflightsAllFiles(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink semantics")
@@ -757,9 +891,25 @@ func TestScaffoldRefusesSymlinkAndPreflightsAllFiles(t *testing.T) {
 	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "test"}); err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
 		t.Fatalf("preflight error=%v", err)
 	}
-	for _, name := range []string{ManifestName, "adapter.py"} {
+	for _, name := range []string{ManifestName, "adapter.py", "test_adapter.py", "testdata"} {
 		if _, err := os.Lstat(filepath.Join(destination, name)); !os.IsNotExist(err) {
 			t.Fatalf("partial file %s exists: %v", name, err)
+		}
+	}
+
+	nestedDestination := filepath.Join(root, "nested-link")
+	if err := os.Mkdir(nestedDestination, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(nestedDestination, "testdata")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ScaffoldPython(nestedDestination, ScaffoldOptions{Name: "test"}); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+		t.Fatalf("nested symlink error=%v", err)
+	}
+	for _, name := range []string{ManifestName, "adapter.py", "test_adapter.py", "README.md"} {
+		if _, err := os.Lstat(filepath.Join(nestedDestination, name)); !os.IsNotExist(err) {
+			t.Fatalf("rollback left %s: %v", name, err)
 		}
 	}
 }
@@ -784,6 +934,13 @@ func loadAndTrust(t *testing.T, dir string) (*Plugin, *TrustStore) {
 	return p, store
 }
 func writeFile(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeExistingFile(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)

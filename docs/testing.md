@@ -33,6 +33,14 @@ Required representative fixtures:
 Keep committed fixtures small, synthetic, deterministic, and non-sensitive.
 Generate large fixtures during tests when practical.
 
+Generated adapters include `test_adapter.py` and `testdata/cases.json`. The
+runner must preserve listed case order, pass argv without a shell, reject paths
+outside `testdata`, and require the Go validator to report the expected format,
+deterministic output, and minimum record count. Scaffold tests cover zero cases,
+traversal and symlink escape, malformed validator output, format mismatch, and
+record-count failure. These tests do not weaken the review-and-trust boundary:
+running the fixture harness executes adapter code.
+
 ### Go subsystem tests
 
 Keep table-driven tests at model, plugin, index, daemon, server, alignment, and

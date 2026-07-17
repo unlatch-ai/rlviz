@@ -92,13 +92,37 @@ Keep source-specific adapters next to the code that produces the source format:
     customer-x/
       rlviz-plugin.yaml
       adapter.py
+      test_adapter.py
       testdata/
+        cases.json
         sample.trace
 ```
 
 Use small, synthetic, non-sensitive fixtures in `testdata`. Do not commit
 customer traces, credentials, model outputs, or proprietary artifacts merely to
 test an adapter.
+
+`cases.json` is a strict, ordered fixture manifest:
+
+```json
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "source": "sample.trace",
+      "expected_format": "customer-x-rollout-v2",
+      "min_records": 4
+    }
+  ]
+}
+```
+
+The generated `test_adapter.py` rejects absolute paths, traversal, and symlink
+escapes, then delegates each case to `rlviz plugin validate --json`. It does not
+reimplement canonical validation. Because the runner executes the adapter, first
+review the runner, adapter, manifest, case manifest, and fixtures; then trust the
+complete digest. Run `python3 test_adapter.py` before validating the private
+source. Changing code or fixtures invalidates trust as intended.
 
 A manifest declares the versioned protocol and executable entrypoint:
 

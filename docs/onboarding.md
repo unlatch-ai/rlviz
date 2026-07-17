@@ -119,6 +119,7 @@ and exact next commands. The user reviews the executable files before trust:
 
 ```bash
 rlviz plugin trust --json .rlviz/plugins/my-format
+python3 .rlviz/plugins/my-format/test_adapter.py
 rlviz plugin validate --json .rlviz/plugins/my-format ./path/to/rollout
 rlviz open --json ./path/to/rollout --adapter .rlviz/plugins/my-format
 ```

@@ -23,11 +23,14 @@ map of observed field paths and JSON types, not a complete schema. Then edit
 only the generated adapter and inspect only the representative records needed
 to convert the source to canonical `rlviz.dev/v1alpha1` records. Preserve order,
 stable identity, and source locations. Use machine-readable validator findings
-to repair the adapter; never rewrite the source to make validation pass.
+to repair the adapter; never rewrite the source to make validation pass. Add
+small invented fixtures to `testdata/cases.json`; never copy private source
+records into the plugin.
 
-Review the manifest and all executable adapter files, summarize what will run,
-and get the user's explicit approval before trust. Never auto-trust a discovered,
-generated, or changed adapter. Validation executes the adapter and therefore
+Review the manifest, all executable adapter files, case manifest, and synthetic
+fixtures. Summarize what will run and get the user's explicit approval before
+trust. Never auto-trust a discovered, generated, or changed adapter. Validation
+executes the adapter and therefore
 requires trust. Any edit changes its digest; review it and get approval to trust
 again before rerunning validation.
 
@@ -35,6 +38,7 @@ After the adapter is implemented, reviewed, and approved, run:
 
 ```bash
 rlviz plugin trust --json .rlviz/plugins/<name>
+python3 .rlviz/plugins/<name>/test_adapter.py
 rlviz plugin validate --json .rlviz/plugins/<name> "<source>"
 rlviz open --json "<source>" --adapter .rlviz/plugins/<name>
 ```

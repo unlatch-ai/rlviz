@@ -24,7 +24,7 @@ func TestInitPluginFromSourceReturnsAgentReadyPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantFiles := []string{"rlviz-plugin.yaml", "adapter.py", "README.md"}
+	wantFiles := []string{"rlviz-plugin.yaml", "adapter.py", "test_adapter.py", "testdata/cases.json", "README.md"}
 	if result.SchemaVersion != 1 || result.Status != "created" || !result.ReviewRequired || !reflect.DeepEqual(result.Files, wantFiles) {
 		t.Fatalf("result=%#v", result)
 	}
@@ -40,6 +40,7 @@ func TestInitPluginFromSourceReturnsAgentReadyPlan(t *testing.T) {
 	}
 	wantCommands := []string{
 		shellCommand("rlviz", "plugin", "trust", "--json", result.Path),
+		shellCommand("python3", filepath.Join(result.Path, "test_adapter.py")),
 		shellCommand("rlviz", "plugin", "validate", "--json", result.Path, resolvedSource),
 		shellCommand("rlviz", "open", "--json", "--adapter", result.Path, resolvedSource),
 	}
@@ -65,6 +66,15 @@ func TestInitPluginProfileDoesNotCopySourceValues(t *testing.T) {
 	}
 	if strings.Contains(string(raw), secret) || strings.Contains(string(raw), "0.75") {
 		t.Fatalf("source values leaked into init plan: %s", raw)
+	}
+	for _, name := range result.Files {
+		contents, err := os.ReadFile(filepath.Join(result.Path, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(contents), secret) || strings.Contains(string(contents), "0.75") {
+			t.Fatalf("source values leaked into generated file %s", name)
+		}
 	}
 }
 
