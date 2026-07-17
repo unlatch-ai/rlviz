@@ -22,6 +22,22 @@ The smallest examples are under `fixtures/canonical/`.
 non-canonical JSONL format. It is reference code, not automatically discovered
 or trusted built-in support.
 
+### Inspect AI EvalLog JSON
+
+`examples/adapters/inspect-ai` maps the documented JSON `EvalLog` shape,
+including model, tool, score, and compaction events. It intentionally does not
+claim support for the compressed `.eval` container.
+
+### Prime Intellect Verifiers GenerateOutputs JSON
+
+`examples/adapters/verifiers` maps the JSON-compatible `GenerateOutputs`
+contract, including rollout steps, rewards, metrics, token masks, and explicit
+generation truncation flags.
+
+These are dependency-free reference adapters backed by synthetic,
+contract-shaped fixtures. They are not automatically discovered or trusted
+built-in support.
+
 ## Project-local and user adapters
 
 Private or organization-specific formats are supported through trusted process

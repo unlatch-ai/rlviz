@@ -260,11 +260,11 @@ trajectory API. Broader inspector and keymap customization remains.
 1. Gather representative adapter-validation failures and extend structured
    fields only where the validation origin can identify them without parsing
    error prose.
-2. Gather at least two representative real adapter fixtures and use them to
-   satisfy the context evidence gate in `context-semantics.md`, then validate
-   message, tool-span, verifier, and context semantics.
-3. Design the context-usage track and minimap only after those mappings are
-   supported by the canonical model.
+2. Validate the Inspect AI and Verifiers mappings against additional upstream
+   samples as their public contracts evolve.
+3. Design the smallest canonical context contract and migration from the now
+   documented two-format evidence, then build the context-usage track and
+   minimap only from structured observations.
 4. Apply the trajectory design system to richer cohort distributions,
    structured pair diffs, and safe declarative customization.
 5. Validate the clean-machine install-to-open path on Linux; macOS curl,

@@ -81,7 +81,10 @@ Private formats can use project-local process adapters:
 ./bin/rlviz open ./path/to/trace --adapter .rlviz/plugins/customer-trace
 ```
 
-See [`docs/adapter-authoring.md`](docs/adapter-authoring.md) and the working [`simple-jsonl` example](examples/adapters/simple-jsonl).
+See [`docs/adapter-authoring.md`](docs/adapter-authoring.md) and the working
+[`simple-jsonl`](examples/adapters/simple-jsonl),
+[`Inspect AI`](examples/adapters/inspect-ai), and
+[`Verifiers`](examples/adapters/verifiers) examples.
 
 ## Install
 

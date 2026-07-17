@@ -2,12 +2,21 @@
 
 ## Current evidence
 
-RLViz currently has three synthetic compaction events in the rich demo. They
-use `alignment_key: context:compaction` with free-form before/after token values
-and a summary. The bundled example adapter does not map context lifecycle or
-context-window usage from a real source format.
+RLViz has three synthetic compaction events in the rich demo and two
+dependency-free example adapters shaped to independently designed public
+contracts:
 
-The viewer therefore treats `context:*` alignment keys conservatively as
+- [Inspect AI EvalLog JSON](https://inspect.aisi.org.uk/eval-logs.html), whose
+  transcript includes explicit model, tool, score, and compaction events.
+- [Prime Intellect Verifiers GenerateOutputs](https://docs.primeintellect.ai/verifiers/reference),
+  whose rollout steps include full prompts, completions, token masks, rewards,
+  advantages, and truncation flags.
+
+The redistributable fixtures contain synthetic values, but the field mappings
+come from the public source contracts. The adapters remain examples rather than
+built-in support.
+
+The viewer still treats `context:*` alignment keys conservatively as
 source-provided landmarks. It can jump to them, render their raw payload, and
 count them in comparisons. It does not infer context membership, interpolate
 window usage, or treat cumulative billing tokens as prompt occupancy.
@@ -23,9 +32,28 @@ two independently designed real formats. Each mapping must distinguish:
 - cumulative token accounting versus tokens present in a model input
 - explicit retained, dropped, or summarized membership versus inference
 
-Synthetic fixtures exercise rendering and validation but do not satisfy this
-gate. Until the gate is met, context-window charts and membership claims remain
-out of the core UI.
+The two mappings below satisfy the format-diversity gate for designing the
+smallest candidate contract. They do not by themselves authorize inferred
+membership or interpolated context charts.
+
+## Format mappings
+
+| Candidate fact | Inspect AI | Verifiers |
+| --- | --- | --- |
+| Ordered model input | `ModelEvent.input`, source native | `TrajectoryStep.prompt`, source native |
+| Model output | `ModelEvent.output`, source native | `TrajectoryStep.completion`, source native |
+| Lifecycle operation | `CompactionEvent.type`: `summary`/`edit` map to `compaction`; `trim` maps to `truncation` | Unavailable. `is_truncated` is a generation/sequence-limit fact, not proof of input-context truncation |
+| Input tokens before/after | `tokens_before` and `tokens_after`, source native when present | Per-step non-padding prompt-token count can be adapter-derived from `prompt_mask` |
+| Capacity | Unavailable | Unavailable |
+| Retained/dropped/summarized membership | Unavailable. A compaction event does not identify message membership | Unavailable. Comparing repeated prompts would be inference, not source-native membership |
+| Summary text | Unavailable on `CompactionEvent` | Unavailable |
+| Cumulative usage | Logged separately and must not be treated as occupancy | `input_tokens` counts shared context repeatedly; `final_input_tokens` assumes a linear trajectory and is not valid for rewritten histories |
+
+Inspect compaction changes model input while retaining the full underlying
+history for audit. Verifiers token IDs and masks are training data: they support
+an exact per-step count but do not say which earlier semantic messages were
+retained or removed. Both adapters preserve the source-shaped values so a later
+canonical migration remains auditable.
 
 ## Smallest candidate contract
 

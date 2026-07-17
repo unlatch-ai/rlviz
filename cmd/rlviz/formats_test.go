@@ -13,15 +13,20 @@ import (
 
 func TestCollectFormatsAlwaysReportsCanonicalNDJSON(t *testing.T) {
 	result := collectFormats(nil)
-	if len(result.Formats) != 1 {
+	if len(result.Formats) != 4 {
 		t.Fatalf("formats = %#v", result.Formats)
 	}
 	format := result.Formats[0]
 	if format.ID != "canonical-ndjson" || format.Source != "built_in" || format.Status != "available" || format.APIVersion != model.APIVersion {
 		t.Fatalf("canonical format = %#v", format)
 	}
-	if text := formatListText(result.Formats); !strings.Contains(text, "Trusted plugins:\n  none") {
+	if text := formatListText(result.Formats); !strings.Contains(text, "Trusted plugins:\n  none") || !strings.Contains(text, "inspect-ai-eval-log-json-v2  example") {
 		t.Fatalf("format list = %q", text)
+	}
+	for _, example := range result.Formats[1:] {
+		if example.Source != "example_adapter" || example.Status != "example" {
+			t.Fatalf("example format = %#v", example)
+		}
 	}
 }
 
@@ -37,7 +42,7 @@ func TestCollectFormatsIncludesSchemaVersionedDiscoveryInventory(t *testing.T) {
 		Issues: []plugins.DiscoveryIssue{{Root: "/extra", Code: "root_unreadable", Error: "denied"}},
 	}
 	result := collectFormats(nil, discovery)
-	if result.SchemaVersion != 1 || len(result.DiscoveryIssues) != 1 || len(result.Formats) != 2 {
+	if result.SchemaVersion != 1 || len(result.DiscoveryIssues) != 1 || len(result.Formats) != 5 {
 		t.Fatalf("result = %#v", result)
 	}
 	got := result.Formats[1]

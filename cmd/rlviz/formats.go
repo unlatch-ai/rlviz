@@ -129,7 +129,16 @@ func collectFormats(entries []plugins.TrustEntry, discoveries ...plugins.Discove
 			knownPaths[cleanFormatPath(item.Path)] = len(formats) - 1
 		}
 	}
+	formats = append(formats, documentedExampleFormats()...)
 	return formatsResult{SchemaVersion: 1, Formats: formats, DiscoveryIssues: issues}
+}
+
+func documentedExampleFormats() []formatInfo {
+	return []formatInfo{
+		{ID: "simple-agent-jsonl", Name: "Simple JSONL", Source: "example_adapter", Kind: "Adapter", APIVersion: model.APIVersion, Version: "0.1.0", Status: "example", Capabilities: []string{"adapter.probe", "adapter.stream"}, Description: "Small non-canonical JSONL reference adapter"},
+		{ID: "inspect-ai-eval-log-json-v2", Name: "Inspect AI EvalLog JSON v2", Source: "example_adapter", Kind: "Adapter", APIVersion: model.APIVersion, Version: "0.1.0", Status: "example", Capabilities: []string{"adapter.probe", "adapter.stream"}, Description: "Model, tool, score, and compaction events from EvalLog JSON"},
+		{ID: "prime-verifiers-generate-outputs", Name: "Prime Intellect Verifiers GenerateOutputs", Source: "example_adapter", Kind: "Adapter", APIVersion: model.APIVersion, Version: "0.1.0", Status: "example", Capabilities: []string{"adapter.probe", "adapter.stream"}, Description: "RL rollout steps, token masks, rewards, and metrics"},
+	}
 }
 
 func cleanFormatPath(path string) string {
@@ -151,10 +160,13 @@ func formatListText(formats []formatInfo) string {
 		}
 	}
 	trusted := make([]string, 0)
+	examples := make([]string, 0)
 	discovered := make([]string, 0)
 	for _, format := range formats {
 		if format.Source == "trusted_plugin" {
 			trusted = append(trusted, fmt.Sprintf("  %s  %s  %s", format.ID, format.Kind, format.Status))
+		} else if format.Source == "example_adapter" {
+			examples = append(examples, fmt.Sprintf("  %s  %s", format.ID, format.Status))
 		} else if format.Source != "built_in" {
 			name := format.ID
 			if name == "" {
@@ -169,12 +181,14 @@ func formatListText(formats []formatInfo) string {
 		lines = append(lines, "", "Trusted plugins:")
 		lines = append(lines, trusted...)
 	}
+	lines = append(lines, "", "Example adapters (explicit selection and trust required):")
+	lines = append(lines, examples...)
 	if len(discovered) == 0 {
 		lines = append(lines, "", "Discovered plugin manifests:", "  none")
 	} else {
 		lines = append(lines, "", "Discovered plugin manifests (inventory only; not executed):")
 		lines = append(lines, discovered...)
 	}
-	lines = append(lines, "", "Example adapters are not built-in formats. See docs/supported-formats.md.")
+	lines = append(lines, "", "See docs/supported-formats.md for example paths and exact support boundaries.")
 	return strings.Join(lines, "\n")
 }
