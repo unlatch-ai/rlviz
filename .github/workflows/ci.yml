@@ -24,7 +24,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm --prefix web ci
+      - run: npx --prefix web playwright install --with-deps chromium
       - run: make check
+      - run: make web-e2e
       - run: go test -race ./...
       - run: git diff --exit-code -- web/dist
       - run: make build

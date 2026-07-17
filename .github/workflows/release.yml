@@ -27,7 +27,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm --prefix web ci
+      - run: npx --prefix web playwright install --with-deps chromium
       - run: make check
+      - run: make web-e2e
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         with:
           distribution: goreleaser

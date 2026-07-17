@@ -12,7 +12,8 @@ flows, strong protocol fixtures, and focused component/unit tests.
 npm installer tests, the production web build, the curl installer, and Homebrew
 formula rendering. The embedded production bundle uses the cross-platform
 Terser minifier so committed assets are byte-reproducible on macOS and Linux.
-CI also runs the Go race detector and release-target builds.
+CI also runs the Go race detector, release-target builds, and a Playwright
+Chromium navigation flow at 1440 x 900.
 
 ## Test layers
 
@@ -70,7 +71,9 @@ conflict rejection.
 
 ### Real-browser end-to-end tests
 
-Start with five Chromium flows:
+The first Chromium flow covers deterministic repeated keyboard navigation,
+text-entry suppression, manual landmark-rail scroll retention, one-time
+deep-link reveal, and Help focus return. Grow the suite toward five flows:
 
 1. Rich demo opens; transcript and keyboard navigation work.
 2. Long trajectory searches, filters, selects landmarks, and restores a deep link.

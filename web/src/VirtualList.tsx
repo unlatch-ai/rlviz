@@ -55,6 +55,8 @@ function VirtualRow({ itemId, style, onSize, children }: VirtualRowProps) {
 export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedIndex = -1, scrollRef, className, itemKey, renderItem, onVisibleRangeChange }: VirtualListProps<T>) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sizesRef = useRef(new Map<string, number>());
+  const selectedIndexRef = useRef(selectedIndex);
+  const layoutRef = useRef<{ offsets: number[]; total: number }>({ offsets: [0], total: 0 });
   const [measurementVersion, setMeasurementVersion] = useState(0);
   const [viewport, setViewport] = useState({ offset: 0, height: 600 });
 
@@ -66,6 +68,9 @@ export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedInde
     }
     return { offsets, total: offsets[items.length] || 0 };
   }, [items, estimateSize, itemKey, measurementVersion]);
+  const selectedKey = selectedIndex >= 0 && selectedIndex < items.length ? itemKey(items[selectedIndex]) : undefined;
+  selectedIndexRef.current = selectedIndex;
+  layoutRef.current = layout;
 
   const updateViewport = useCallback(() => {
     const scroller = scrollRef.current;
@@ -88,17 +93,20 @@ export function VirtualList<T>({ items, estimateSize, overscan = 5, selectedInde
   }, [scrollRef, updateViewport]);
 
   useEffect(() => {
-    if (selectedIndex < 0 || selectedIndex >= items.length) return;
+    const index = selectedIndexRef.current;
+    if (selectedKey === undefined || index < 0) return;
     const scroller = scrollRef.current;
     const root = rootRef.current;
     if (!scroller || !root) return;
-    const top = root.offsetTop + layout.offsets[selectedIndex];
-    const bottom = root.offsetTop + layout.offsets[selectedIndex + 1];
+    const currentLayout = layoutRef.current;
+    if (index >= currentLayout.offsets.length - 1) return;
+    const top = root.offsetTop + currentLayout.offsets[index];
+    const bottom = root.offsetTop + currentLayout.offsets[index + 1];
     const viewportHeight = scroller.clientHeight || 600;
     if (top < scroller.scrollTop) scroller.scrollTop = top;
     else if (bottom > scroller.scrollTop + viewportHeight) scroller.scrollTop = Math.max(0, bottom - viewportHeight);
     updateViewport();
-  }, [items.length, layout, scrollRef, selectedIndex]);
+  }, [scrollRef, selectedKey, updateViewport]);
 
   const onSize = useCallback((itemId: string, size: number) => {
     if (!size || sizesRef.current.get(itemId) === size) return;

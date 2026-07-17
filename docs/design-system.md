@@ -6,6 +6,11 @@ RLViz should feel like a durable technical instrument: quiet, legible, dense
 when useful, and consistent under long sessions. Visual polish comes from a
 small coherent system, not a large collection of one-off CSS values.
 
+The selected trajectory-workspace direction is specified in
+[`trajectory-workspace-v2.md`](trajectory-workspace-v2.md). That document owns
+the concrete light-theme hierarchy and geometry; this document owns primitives
+and rules shared by every RLViz surface.
+
 ## Principles
 
 1. **Hierarchy before decoration.** One primary reading surface, supporting
@@ -92,9 +97,14 @@ feature components to know internal CSS structure.
 
 ## Themes and customization
 
-Ship one excellent dark theme first, with semantic tokens complete enough for a
-future light theme. User themes may override validated token values. Do not
-allow plugins to inject selectors or arbitrary CSS.
+Ship the V2 light theme first, with semantic tokens complete enough to map to a
+future dark theme without changing component behavior. User themes may override
+validated token values. Do not allow plugins to inject selectors or arbitrary
+CSS.
+
+Selection and keyboard focus are separate semantic states. The V2 light theme
+uses restrained oxblood for selection and cobalt for focus. Components must
+remain understandable when both states appear at once.
 
 ## Accessibility
 

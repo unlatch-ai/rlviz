@@ -293,8 +293,8 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
 
   useEffect(() => {
     if (surface !== "transcript") return;
-    requestAnimationFrame(() => document.getElementById(`event-${selectedId}`)?.scrollIntoView({ block: "nearest" }));
-  }, [selectedId, surface]);
+    requestAnimationFrame(() => document.getElementById(`event-${selectedId}`)?.scrollIntoView({ block: "nearest", behavior: "instant" }));
+  }, [selectedId, surface, trajectory.id]);
 
   const move = (delta: number, predicate?: (event: TrajectoryEvent) => boolean) => {
     const candidates = predicate ? visible.filter(predicate) : visible;
@@ -373,7 +373,7 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     [commandIds.trajectory.openTranscript]: () => openSurface("transcript"),
     [commandIds.trajectory.openTimeline]: () => openSurface("timeline"),
     [commandIds.trajectory.openOutcome]: () => openSurface("outcome"),
-  }, !group && !comparison);
+  }, !group && !comparison && !help);
 
   if (comparison) return <div className="app-shell group-shell comparison-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">RV</span><span>RLViz</span></div><div className="crumb"><span>{trajectory.run_id || "local run"}</span><b>/</b><strong>comparison</strong></div>{isDemo && <div className="top-actions"><span className="demo-pill">Synthetic demo</span></div>}</header>

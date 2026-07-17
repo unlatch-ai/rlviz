@@ -171,11 +171,17 @@ references, endpoints, and the current selection. Filtering switches the rail
 to raw matching events without changing canonical event navigation.
 `commands.ts` is the single command/keymap registry. Validated presentation
 bindings act as portable project defaults; browser-local overrides take
-precedence and executable handlers remain core-owned.
+precedence and executable handlers remain core-owned. Its browser listener is
+stable across React renders and reads current handlers through a ref, while
+text-entry and modal surfaces suppress unrelated global commands.
 `api.ts` is the typed daemon client, `types.ts` mirrors API records, and
 `VirtualList.tsx` bounds DOM work for long lists while reporting the exact
-non-overscanned viewport to the overview. Structured context observations
-take precedence over legacy `context:*` alignment landmarks; richer context
+non-overscanned viewport to the overview. Selection reveal is keyed to selected
+item identity rather than measurement renders, so manual scroll remains under
+the user's control. `web/e2e` and `playwright.config.ts` exercise these browser
+contracts against deterministic intercepted daemon responses. Structured
+context observations take precedence over legacy `context:*` alignment
+landmarks; richer context
 membership is shown only when the source explicitly supplies it.
 
 The SQLite schema is currently version 5. Event rows retain their complete raw

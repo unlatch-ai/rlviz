@@ -266,11 +266,74 @@ keymap defaults now use that same bounded contract.
 
 ## Near-term issue sequence
 
-1. Validate the Inspect AI and Verifiers mappings against additional upstream
+1. Deliver Milestone 12 in four reviewable vertical slices.
+2. Validate the Inspect AI and Verifiers mappings against additional upstream
    samples as their public contracts evolve.
-2. Validate landmark density and labeling on longer real research traces.
-3. Validate the clean-machine install-to-open path on Linux; macOS curl,
+3. Validate landmark density and labeling on longer real research traces.
+4. Validate the clean-machine install-to-open path on Linux; macOS curl,
    Homebrew, and npm paths are verified.
+
+## Milestone 12: trajectory workspace V2 and browser reliability
+
+Status: specified in
+[`trajectory-workspace-v2.md`](trajectory-workspace-v2.md). Slice 12.1 is in
+progress with the first deterministic Chromium navigation flow and the initial
+command-listener and selection-reveal fixes implemented.
+
+### Slice 12.1: interaction reliability before restyling
+
+- Add Playwright with one checked-in Chromium project and a deterministic
+  1440 x 900 viewport.
+- Reproduce the rail scroll snap-back and intermittent shortcut failures.
+- Route selection through one function with explicit command, pointer, search,
+  and restore reasons.
+- Separate selection state, DOM focus, and reveal behavior.
+- Cover manual rail scroll retention, input suppression, dialog focus return,
+  deep-link restore, and 100-step `j`/`k` navigation.
+
+Exit: both reported navigation bugs fail before the fix, pass after it, and the
+packaged demo completes the same browser flow.
+
+### Slice 12.2: tokens, frame, and primitives
+
+- Implement the V2 light semantic tokens without compatibility aliases in new
+  components.
+- Build the two-row run header, adjustable rail and inspector, context strip,
+  selected-event header, inspector section, and unified transport primitives.
+- Add a development-only fixture route or state matrix for primitive review;
+  do not add Storybook.
+- Verify typography, contrast, focus plus selection, compact/comfortable
+  density, and 1024/1180 px collapse thresholds.
+
+Exit: the empty shell and component state matrix match the V2 hierarchy at
+1440 x 900 and 1280 x 800 without changing canonical data behavior.
+
+### Slice 12.3: trajectory vertical migration
+
+- Move transcript/timeline selection into the selected-event composition.
+- Replace the duplicated event outline with the sparse landmark rail.
+- Move persistent shortcut hints into Help and the command palette.
+- Recompose selected-event payload, linked tool/result, verifier evidence,
+  artifacts, and reward using the new primitives.
+- Keep raw records, source offsets, context evidence, virtualization, URLs, and
+  command IDs intact.
+
+Exit: the rich demo, long trajectory, context compaction, outcome, artifact,
+and raw-record flows all work in the new hierarchy.
+
+### Slice 12.4: visual, accessibility, and performance gate
+
+- Commit deterministic trajectory screenshots at 1440 x 900 and 1280 x 800.
+- Add axe checks, reduced-motion coverage, keyboard-only completion, and focus
+  return assertions.
+- Record DOM-count and command-response evidence on the generated 10,000-event
+  fixture.
+- Run the packaged binary browser flow and assert zero outbound requests.
+- Remove obsolete CSS and compatibility markup only after the new flow passes.
+
+Exit: `make check`, Playwright, visual review, accessibility checks, packaged
+browser flow, and performance budgets are green. The architecture and testing
+docs describe the shipped implementation rather than the plan.
 
 ## Quality gates
 

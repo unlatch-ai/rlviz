@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { createElement, useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { applyPresentationKeymap, bindingsFor, commandIds, commands, detectKeymapConflicts, eventBinding, keymapStorageKey, loadKeymapOverrides, matchesBinding, normalizeBinding, presentationKeymapOverrides, resetKeymapOverrides, saveKeymapOverrides, setCommandBindings } from "./commands";
+import { useCommands } from "./commands";
 
 describe("command registry", () => {
   it("has stable unique IDs and conflict-free defaults in each scope", () => {
@@ -59,5 +62,40 @@ describe("command registry", () => {
     expect(presentationKeymapOverrides({ api_version: "rlviz.dev/v1alpha1", keymap: { bindings: { [commandIds.trajectory.next]: ["k"] } } })).toEqual({});
     expect(presentationKeymapOverrides({ api_version: "rlviz.dev/v1alpha1", keymap: { bindings: { unknown: ["q"] } } })).toEqual({});
     expect(presentationKeymapOverrides({ api_version: "rlviz.dev/v1alpha1", keymap: { bindings: { [commandIds.trajectory.next]: ["Hyper+j"] } } })).toEqual({});
+  });
+
+  it("keeps one listener bound while using the latest command handler", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    function Harness() {
+      const [latest, setLatest] = useState(false);
+      useCommands("trajectory", { [commandIds.trajectory.next]: latest ? second : first });
+      return createElement("button", { onClick: () => setLatest(true) }, "Update");
+    }
+    const { getByRole } = render(createElement(Harness));
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.click(getByRole("button", { name: "Update" }));
+    fireEvent.keyDown(window, { key: "j" });
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses commands in text entry, selects, and dialogs", () => {
+    const next = vi.fn();
+    function Harness() {
+      useCommands("trajectory", { [commandIds.trajectory.next]: next });
+      return createElement("div", null,
+        createElement("input", { "aria-label": "input" }),
+        createElement("select", { "aria-label": "select" }, createElement("option", null, "one")),
+        createElement("div", { role: "dialog" }, createElement("button", null, "Dialog action")),
+        createElement("button", null, "Outside"),
+      );
+    }
+    const { getByRole, getByLabelText } = render(createElement(Harness));
+    fireEvent.keyDown(getByLabelText("input"), { key: "j" });
+    fireEvent.keyDown(getByLabelText("select"), { key: "j" });
+    fireEvent.keyDown(getByRole("button", { name: "Dialog action" }), { key: "j" });
+    fireEvent.keyDown(getByRole("button", { name: "Outside" }), { key: "j" });
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

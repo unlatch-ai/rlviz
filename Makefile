@@ -1,4 +1,4 @@
-.PHONY: build check clean dev format test web-build web-install
+.PHONY: build check clean dev format test web-build web-e2e web-install
 
 build: web-build
 	mkdir -p bin
@@ -9,6 +9,9 @@ web-install:
 
 web-build:
 	npm --prefix web run build
+
+web-e2e:
+	npm --prefix web run test:e2e
 
 test:
 	go test ./...

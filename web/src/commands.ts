@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PresentationConfig } from "./types";
 
 export type CommandScope = "trajectory" | "group" | "paths" | "comparison";
@@ -210,14 +210,18 @@ export function applyPresentationKeymap(config?: PresentationConfig): () => void
 
 export type CommandHandlers = Partial<Record<CommandId, (event: KeyboardEvent) => void | boolean>>;
 export function useCommands(scope: CommandScope, handlers: CommandHandlers, enabled = true): void {
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable);
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable === true;
+      const inDialog = target ? target.closest("dialog, [role='dialog']") !== null : false;
       const overrides = loadKeymapOverrides();
       for (const command of commands) {
-        const handler = handlers[command.id];
-        if (command.scope !== scope || !handler || (typing && !command.allowInInput)) continue;
+        const handler = handlersRef.current[command.id];
+        if (command.scope !== scope || !handler || ((typing || inDialog) && !command.allowInInput)) continue;
         if (!bindingsFor(command.id, overrides).some((candidate) => matchesBinding(event, candidate))) continue;
         if (handler(event) === false) continue;
         event.preventDefault();
@@ -226,7 +230,7 @@ export function useCommands(scope: CommandScope, handlers: CommandHandlers, enab
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enabled, handlers, scope]);
+  }, [enabled, scope]);
 }
 
 export function commandDefinition(id: CommandId): CommandDefinition {

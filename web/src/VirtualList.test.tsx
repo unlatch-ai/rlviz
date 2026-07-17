@@ -19,4 +19,21 @@ describe("VirtualList visible range", () => {
     fireEvent.scroll(scroller);
     await waitFor(() => expect(onVisibleRangeChange).toHaveBeenLastCalledWith({ start: 2, end: 4 }));
   });
+
+  it("reveals a new selection once without undoing later manual scroll", async () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const items = Array.from({ length: 20 }, (_, index) => `item-${index}`);
+    const { container, rerender } = render(<div ref={scrollRef}><VirtualList items={items} estimateSize={50} selectedIndex={0} scrollRef={scrollRef} className="items" itemKey={(item) => item} renderItem={(item) => <div>{item}</div>} /></div>);
+    const scroller = scrollRef.current!;
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(container.querySelector(".virtual-list"), "offsetTop", { configurable: true, value: 0 });
+
+    scroller.scrollTop = 350;
+    fireEvent.scroll(scroller);
+    rerender(<div ref={scrollRef}><VirtualList items={[...items]} estimateSize={50} selectedIndex={0} scrollRef={scrollRef} className="items" itemKey={(item) => item} renderItem={(item) => <div>{item}</div>} /></div>);
+    await waitFor(() => expect(scroller.scrollTop).toBe(350));
+
+    rerender(<div ref={scrollRef}><VirtualList items={items} estimateSize={50} selectedIndex={12} scrollRef={scrollRef} className="items" itemKey={(item) => item} renderItem={(item) => <div>{item}</div>} /></div>);
+    await waitFor(() => expect(scroller.scrollTop).toBeGreaterThanOrEqual(500));
+  });
 });

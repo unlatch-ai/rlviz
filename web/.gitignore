@@ -2,3 +2,5 @@ node_modules/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+playwright-report/
+test-results/
