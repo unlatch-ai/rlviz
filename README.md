@@ -29,6 +29,7 @@ rlviz demo
 rlviz formats
 rlviz inspect ./path/to/rollout.ndjson
 rlviz setup agent codex --print
+rlviz plugin init --type adapter --from ./private.trace .rlviz/plugins/private-format
 ```
 
 The setup command prints version-matched instructions for Codex, Claude Code,
@@ -73,7 +74,7 @@ Both cache commands accept `--json`. Cleanup only removes `index.sqlite` and its
 Private formats can use project-local process adapters:
 
 ```bash
-./bin/rlviz plugin init --type adapter --lang python .rlviz/plugins/customer-trace
+./bin/rlviz plugin init --type adapter --lang python --from ./path/to/trace .rlviz/plugins/customer-trace
 # Review the generated executable code before trusting it.
 ./bin/rlviz plugin trust .rlviz/plugins/customer-trace
 ./bin/rlviz plugin validate .rlviz/plugins/customer-trace ./path/to/trace

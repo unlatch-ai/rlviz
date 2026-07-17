@@ -110,7 +110,10 @@ rlviz plugin init --type adapter --from ./path/to/rollout .rlviz/plugins/my-form
 ```
 
 An agent inspects a bounded representative sample and edits the generated
-adapter. The user reviews the executable files before trust:
+adapter. The command itself does not read or copy source contents. With
+`--json`, it returns the resolved source shape, generated files,
+`review_required: true`, and exact next commands. The user reviews the
+executable files before trust:
 
 ```bash
 rlviz plugin trust .rlviz/plugins/my-format

@@ -124,14 +124,14 @@ The CLI returns a machine-readable diagnostic and scaffold command:
 {
   "code": "unsupported_format",
   "path": "/absolute/path/trajectory.jsonl",
-  "suggested_command": "rlviz plugin init --type adapter --lang python .rlviz/plugins/local-adapter"
+  "suggested_command": "rlviz plugin init --type adapter --lang python --from /absolute/path/trajectory.jsonl .rlviz/plugins/local-adapter"
 }
 ```
 
 A coding agent can then create, validate, and use a local adapter:
 
 ```bash
-rlviz plugin init --type adapter --lang python ./plugins/customer-x
+rlviz plugin init --type adapter --lang python --from ./trajectory.jsonl ./plugins/customer-x
 rlviz plugin trust ./plugins/customer-x
 rlviz plugin validate ./plugins/customer-x ./trajectory.jsonl
 rlviz open ./trajectory.jsonl --adapter ./plugins/customer-x

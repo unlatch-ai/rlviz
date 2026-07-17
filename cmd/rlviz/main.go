@@ -36,6 +36,25 @@ type openResult struct {
 	Started  bool   `json:"daemon_started,omitempty"`
 }
 
+type pluginInitSource struct {
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+type pluginInitResult struct {
+	SchemaVersion  int               `json:"schema_version"`
+	Status         string            `json:"status"`
+	Path           string            `json:"path"`
+	Name           string            `json:"name"`
+	Type           string            `json:"type"`
+	Language       string            `json:"language"`
+	Files          []string          `json:"files"`
+	Source         *pluginInitSource `json:"source,omitempty"`
+	ReviewRequired bool              `json:"review_required"`
+	NextCommands   []string          `json:"next_commands"`
+}
+
 func main() {
 	command := "help"
 	if len(os.Args) > 1 {
@@ -410,10 +429,11 @@ func runPluginInit(arguments []string) {
 	kind := flags.String("type", "adapter", "plugin type")
 	language := flags.String("lang", "python", "plugin language")
 	name := flags.String("name", "", "plugin name")
+	from := flags.String("from", "", "source this adapter will map")
 	jsonOutput := flags.Bool("json", false, "print machine-readable output")
 	_ = flags.Parse(arguments)
 	if flags.NArg() != 1 || (*kind != "adapter" && *kind != "analyzer") || *language != "python" {
-		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin init --type adapter|analyzer --lang python [--name NAME] DIR")
+		fmt.Fprintln(os.Stderr, "Usage: rlviz plugin init --type adapter|analyzer --lang python [--name NAME] [--from SOURCE] [--json] DIR")
 		os.Exit(2)
 	}
 	destination := flags.Arg(0)
@@ -421,11 +441,61 @@ func runPluginInit(arguments []string) {
 	if pluginName == "" {
 		pluginName = safePluginName(filepath.Base(filepath.Clean(destination)))
 	}
-	if err := plugins.ScaffoldPython(destination, plugins.ScaffoldOptions{Name: pluginName, Kind: *kind}); err != nil {
+	created, err := initPlugin(destination, pluginName, *kind, *from)
+	if err != nil {
 		fatalError("plugin_init", *jsonOutput, err)
 	}
-	absolute, _ := filepath.Abs(destination)
-	writeOutput(map[string]any{"status": "created", "path": absolute, "name": pluginName, "type": *kind}, *jsonOutput, fmt.Sprintf("Created Python %s %s at %s", *kind, pluginName, absolute))
+	human := fmt.Sprintf("Created Python %s %s at %s", *kind, pluginName, created.Path)
+	if len(created.NextCommands) != 0 {
+		human += "\nNext: review the generated files, then run\n  " + strings.Join(created.NextCommands, "\n  ")
+	}
+	writeOutput(created, *jsonOutput, human)
+}
+
+func initPlugin(destination, name, kind, from string) (pluginInitResult, error) {
+	result := pluginInitResult{
+		SchemaVersion:  1,
+		Status:         "created",
+		Name:           name,
+		Type:           kind,
+		Language:       "python",
+		ReviewRequired: true,
+		NextCommands:   []string{},
+	}
+	if kind == "analyzer" && from != "" {
+		return pluginInitResult{}, errors.New("--from is supported only for adapter scaffolds")
+	}
+	if from != "" {
+		request, err := plugins.NewRequest("probe", from, "")
+		if err != nil {
+			return pluginInitResult{}, fmt.Errorf("inspect source: %w", err)
+		}
+		result.Source = &pluginInitSource{Path: request.Source.Path, Kind: request.Source.Kind, SizeBytes: request.Source.SizeBytes}
+	}
+	absolute, err := filepath.Abs(destination)
+	if err != nil {
+		return pluginInitResult{}, fmt.Errorf("resolve plugin destination: %w", err)
+	}
+	files, err := plugins.ScaffoldPython(absolute, plugins.ScaffoldOptions{Name: name, Kind: kind})
+	if err != nil {
+		return pluginInitResult{}, err
+	}
+	result.Path, err = filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return pluginInitResult{}, fmt.Errorf("resolve created plugin: %w", err)
+	}
+	result.Files = files
+	if kind == "analyzer" {
+		return result, nil
+	}
+	if result.Source != nil {
+		result.NextCommands = []string{
+			shellCommand("rlviz", "plugin", "trust", result.Path),
+			shellCommand("rlviz", "plugin", "validate", "--json", result.Path, result.Source.Path),
+			shellCommand("rlviz", "open", "--adapter", result.Path, result.Source.Path),
+		}
+	}
+	return result, nil
 }
 
 func runPluginTrust(arguments []string) {
@@ -609,8 +679,9 @@ func writeError(command string, jsonOutput bool, err error) {
 		details["error"] = apiError.Message
 	} else if errors.As(err, &unsupported) {
 		details["code"] = "unsupported_format"
-		details["path"] = unsupported.Path
-		details["suggested_command"] = "rlviz plugin init --type adapter --lang python .rlviz/plugins/local-adapter"
+		for key, value := range unsupported.DiagnosticFields() {
+			details[key] = value
+		}
 	} else if errors.Is(err, plugins.ErrUntrusted) {
 		details["code"] = "plugin_untrusted"
 	}
@@ -675,7 +746,7 @@ func printPluginHelp() {
 	fmt.Print(`RLViz plugins
 
 Usage:
-  rlviz plugin init --type adapter|analyzer --lang python [--name NAME] DIR
+  rlviz plugin init --type adapter|analyzer --lang python [--name NAME] [--from SOURCE] [--json] DIR
   rlviz plugin trust [--json] DIR
   rlviz plugin validate [--json] DIR SOURCE_OR_ANALYZER_INPUT
   rlviz plugin list [--json]

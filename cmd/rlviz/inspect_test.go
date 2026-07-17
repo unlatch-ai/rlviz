@@ -61,7 +61,7 @@ func TestInspectCanonicalUnsupportedIsSuccessful(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unsupported inspection returned error: %v", err)
 	}
-	if result.Supported || result.Confidence != 0 || result.Reason == "" || !strings.Contains(result.NextCommand, "plugin init") {
+	if result.Supported || result.Confidence != 0 || result.Reason == "" || !strings.Contains(result.NextCommand, "plugin init") || !strings.Contains(result.NextCommand, "--from") || !strings.Contains(result.NextCommand, result.Path) {
 		t.Fatalf("result = %#v", result)
 	}
 }

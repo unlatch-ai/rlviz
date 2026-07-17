@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -614,14 +616,71 @@ func TestSourceRootAndScaffold(t *testing.T) {
 		t.Fatal("expected root escape error")
 	}
 	destination := filepath.Join(t.TempDir(), "adapter")
-	if err := ScaffoldPython(destination, ScaffoldOptions{Name: "customer-x"}); err != nil {
+	files, err := ScaffoldPython(destination, ScaffoldOptions{Name: "customer-x"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if want := []string{ManifestName, "adapter.py", "README.md"}; !reflect.DeepEqual(files, want) {
+		t.Fatalf("files=%#v want=%#v", files, want)
 	}
 	if _, err := Load(destination); err != nil {
 		t.Fatal(err)
 	}
-	if err := ScaffoldPython(destination, ScaffoldOptions{Name: "customer-x"}); err == nil {
+	if _, err := exec.LookPath("python3"); err == nil {
+		plugin, err := Load(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store := &TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")}
+		if err := store.Trust(plugin); err != nil {
+			t.Fatal(err)
+		}
+		request, err := NewRequest("probe", outside, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		probe, _, err := NewHost(store).Probe(context.Background(), plugin, request)
+		if err != nil || probe.Supported || !strings.Contains(probe.Reason, "implement format detection") {
+			t.Fatalf("generated probe=%#v err=%v", probe, err)
+		}
+	}
+	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "customer-x"}); err == nil {
 		t.Fatal("expected overwrite refusal")
+	}
+}
+
+func TestScaffoldRefusesSymlinkAndPreflightsAllFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics")
+	}
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ScaffoldPython(link, ScaffoldOptions{Name: "test"}); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+		t.Fatalf("symlink error=%v", err)
+	}
+	if entries, err := os.ReadDir(target); err != nil || len(entries) != 0 {
+		t.Fatalf("scaffold traversed symlink: entries=%v err=%v", entries, err)
+	}
+
+	destination := filepath.Join(root, "existing")
+	if err := os.Mkdir(destination, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(destination, "README.md"), "keep\n")
+	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "test"}); err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
+		t.Fatalf("preflight error=%v", err)
+	}
+	for _, name := range []string{ManifestName, "adapter.py"} {
+		if _, err := os.Lstat(filepath.Join(destination, name)); !os.IsNotExist(err) {
+			t.Fatalf("partial file %s exists: %v", name, err)
+		}
 	}
 }
 

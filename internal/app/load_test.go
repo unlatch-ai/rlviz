@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/unlatch-ai/rlviz/internal/plugins"
@@ -23,6 +24,9 @@ func TestLoadSourceReturnsStructuredUnsupportedFormat(t *testing.T) {
 	}
 	if unsupported.DiagnosticCode() != "unsupported_format" || unsupported.DiagnosticFields()["path"] == "" {
 		t.Fatalf("diagnostic = %s %#v", unsupported.DiagnosticCode(), unsupported.DiagnosticFields())
+	}
+	if command, _ := unsupported.DiagnosticFields()["suggested_command"].(string); !strings.Contains(command, "--from") || !strings.Contains(command, unsupported.Path) {
+		t.Fatalf("unexpected scaffold command: %q", command)
 	}
 }
 

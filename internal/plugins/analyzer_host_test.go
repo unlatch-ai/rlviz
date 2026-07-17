@@ -103,7 +103,7 @@ func TestAnalyzerInputAndScaffold(t *testing.T) {
 		t.Fatalf("input=%+v err=%v", input, err)
 	}
 	destination := filepath.Join(t.TempDir(), "analyzer")
-	if err := ScaffoldPython(destination, ScaffoldOptions{Name: "test-analyzer", Kind: "analyzer"}); err != nil {
+	if _, err := ScaffoldPython(destination, ScaffoldOptions{Name: "test-analyzer", Kind: "analyzer"}); err != nil {
 		t.Fatal(err)
 	}
 	plugin, err := Load(destination)

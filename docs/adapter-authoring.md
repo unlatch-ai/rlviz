@@ -19,7 +19,7 @@ An unsupported source returns a structured diagnostic similar to:
 {
   "code": "unsupported_format",
   "path": "/workspace/artifacts/task-184.trace",
-  "suggested_command": "rlviz plugin init --type adapter --lang python .rlviz/plugins/task-184"
+  "suggested_command": "rlviz plugin init --type adapter --lang python --from /workspace/artifacts/task-184.trace .rlviz/plugins/task-184"
 }
 ```
 
@@ -28,7 +28,7 @@ suggested command when present, then inspect a small representative sample of th
 source and implement the generated mapping.
 
 ```bash
-rlviz plugin init --type adapter --lang python .rlviz/plugins/customer-x
+rlviz plugin init --type adapter --lang python --from ./artifacts/task-184.trace .rlviz/plugins/customer-x
 ```
 
 Review the manifest and every executable file in the generated directory. The
@@ -48,6 +48,12 @@ trace to make a finding disappear.
 
 Trust is bound to an absolute path and content digest. Committing an adapter does
 not make it trusted on another machine.
+
+`plugin init --json` returns a versioned plan with the resolved source shape,
+deterministic generated-file list, `review_required: true`, and exact trust,
+validate, and open commands. `--from` validates and describes the source but
+does not read its contents or copy a sample into the plugin. A missing source or
+analyzer use of `--from` fails before any scaffold files are created.
 
 ## Project layout
 
@@ -83,8 +89,11 @@ capabilities:
 ```
 
 Prefer the generated Python scaffold over writing the process protocol from
-scratch. It owns request parsing and stdout discipline so adapter code can focus
-on source detection and record mapping.
+scratch. It owns request parsing, stdout discipline, bounded file-prefix reads,
+and stable derived-ID helpers so adapter code can focus on source detection and
+record mapping. Generated file order is stable, existing generated files are
+never replaced, and a symbolic-link destination is refused. Existing parent
+aliases are resolved to their canonical location before files are created.
 
 Keep plugin-local command paths such as `adapter.py` relative to the manifest.
 External interpreters such as `python3` or `/usr/bin/python3` may be bare or

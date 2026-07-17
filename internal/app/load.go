@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/unlatch-ai/rlviz/internal/model"
 	"github.com/unlatch-ai/rlviz/internal/plugins"
@@ -26,8 +27,23 @@ func (err *UnsupportedFormatError) DiagnosticCode() string { return "unsupported
 func (err *UnsupportedFormatError) DiagnosticFields() map[string]any {
 	return map[string]any{
 		"path":              err.Path,
-		"suggested_command": "rlviz plugin init --type adapter --lang python .rlviz/plugins/local-adapter",
+		"suggested_command": AdapterScaffoldCommand(err.Path),
 	}
+}
+
+// AdapterScaffoldCommand keeps unsupported-format diagnostics and inspect
+// output on one source-aware, shell-safe next step.
+func AdapterScaffoldCommand(source string) string {
+	arguments := []string{"rlviz", "plugin", "init", "--type", "adapter", "--lang", "python", "--from", source, ".rlviz/plugins/local-adapter"}
+	for index, argument := range arguments {
+		if argument != "" && strings.IndexFunc(argument, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') && !strings.ContainsRune("_@%+=:,./-", r)
+		}) == -1 {
+			continue
+		}
+		arguments[index] = "'" + strings.ReplaceAll(argument, "'", `'"'"'`) + "'"
+	}
+	return strings.Join(arguments, " ")
 }
 
 type PluginUntrustedError struct {

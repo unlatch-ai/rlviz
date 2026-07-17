@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/unlatch-ai/rlviz/internal/app"
 	"github.com/unlatch-ai/rlviz/internal/model"
 	"github.com/unlatch-ai/rlviz/internal/plugins"
 )
@@ -229,7 +229,7 @@ func unsupportedCanonical(result inspectResult, reason string) inspectResult {
 	result.Format = ""
 	result.Confidence = 0
 	result.Reason = reason
-	result.NextCommand = shellCommand("rlviz", "plugin", "init", "--type", "adapter", "--lang", "python", filepath.Join(".rlviz", "plugins", "local-adapter"))
+	result.NextCommand = app.AdapterScaffoldCommand(result.Path)
 	return result
 }
 

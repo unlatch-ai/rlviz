@@ -183,10 +183,10 @@ additional representative real-format fixtures remain ongoing quality work.
 
 ## Milestone 9: expert onboarding
 
-Status: rich demo, format inventory, and bounded inspection are implemented.
-Read-only, version-matched agent setup output is implemented for Codex, Claude
-Code, and Cursor. A write workflow remains intentionally deferred until its
-merge and overwrite semantics are specified.
+Status: rich demo, format inventory, bounded inspection, and version-matched
+agent setup are implemented for Codex, Claude Code, and Cursor. Setup writes
+are explicit and create-only. Source-aware adapter scaffolding now returns a
+versioned review plan without reading or copying trace contents.
 
 ### Deliverables
 
@@ -257,8 +257,8 @@ trajectory API. Broader inspector and keymap customization remains.
 
 ## Near-term issue sequence
 
-1. Specify safe agent setup write/merge semantics and complete the
-   adapter-authoring tutorial.
+1. Add structured adapter-validation findings so agents can repair a mapping by
+   stable phase, pass, record, and field rather than parsing error prose.
 2. Gather at least two representative real adapter fixtures and use them to
    satisfy the context evidence gate in `context-semantics.md`, then validate
    message, tool-span, verifier, and context semantics.
