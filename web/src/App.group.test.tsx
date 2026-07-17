@@ -55,7 +55,7 @@ describe("group workflow", () => {
     expect(await screen.findByRole("main", { name: "Trajectory comparison" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Alignment step 1: match" })).toHaveClass("selected");
     fireEvent.keyDown(window, { key: "j" });
-    expect(new URLSearchParams(window.location.search).get("step")).toBe("1");
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("step")).toBe("1"));
     expect(window.location.hash).toBe("#token=secret");
   });
 
