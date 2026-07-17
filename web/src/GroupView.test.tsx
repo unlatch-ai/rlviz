@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupView } from "./GroupView";
 import type { GroupPathsResponse, GroupResponse } from "./types";
 
@@ -28,7 +28,17 @@ const mixedPaths: GroupPathsResponse = {
   },
 };
 
+const storedValues = new Map<string, string>();
+const storage = {
+  getItem: vi.fn((key: string) => storedValues.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => { storedValues.set(key, value); }),
+  removeItem: vi.fn((key: string) => { storedValues.delete(key); }),
+};
+
 describe("trajectory group", () => {
+  beforeEach(() => { storedValues.clear(); vi.stubGlobal("localStorage", storage); });
+  afterEach(() => vi.unstubAllGlobals());
+
   it("summarizes mixed outcomes and only shows reported metric columns", () => {
     render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} />);
     expect(screen.getByText("50%", { selector: ".group-summary strong" })).toBeInTheDocument();
@@ -88,6 +98,33 @@ describe("trajectory group", () => {
     expect(screen.getByRole("button", { name: /Custom 09/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Custom 10/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Custom 08/ })).not.toBeInTheDocument();
+  });
+
+  it("saves a bounded optional-column layout without hiding core controls", () => {
+    const first = render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} />);
+    fireEvent.keyDown(window, { key: "C", shiftKey: true });
+    expect(screen.getByRole("dialog", { name: "Table columns" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close table columns" })).toHaveFocus();
+    fireEvent.keyDown(window, { key: "j" });
+    expect(screen.getByText("attempt-good").closest("tr")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Reward" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Advantage/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("button", { name: /Columns/ })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: /^Reward/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Advantage/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Trajectory/ })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select attempt-good for comparison" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open trajectory attempt-good" })).toBeInTheDocument();
+
+    first.unmount();
+    render(<GroupView group={mixedGroup} onClose={() => {}} onOpen={() => {}} />);
+    expect(screen.queryByRole("button", { name: /^Reward/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Advantage/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Columns/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset default" }));
+    expect(screen.getByRole("button", { name: /^Reward/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Advantage/ })).toBeInTheDocument();
   });
 
   it("navigates best and worst trajectories from the keyboard and opens the selection", () => {

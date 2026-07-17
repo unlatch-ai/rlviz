@@ -323,6 +323,26 @@ kbd { display: inline-block; min-width: 17px; padding: 1px 4px; border: 1px soli
 .compare-tools button { border: 1px solid #347b69; border-radius: 4px; background: #133027; padding: 5px 8px; color: #a4e6d5; cursor: pointer; font-size: 9px; }
 .compare-tools button:disabled { border-color: #2a3037; background: #15191d; color: #59636e; cursor: not-allowed; }
 .compare-tools kbd { margin-left: 4px; }
+.column-picker-button { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-overlay); padding: 5px 8px; color: var(--text-secondary); cursor: pointer; font-size: var(--text-xs); }
+.column-picker-button kbd { margin-left: 4px; }
+.column-picker-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 24px; background: #050708b8; }
+.column-picker { width: min(610px, calc(100vw - 48px)); max-height: min(680px, calc(100vh - 48px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: 0 24px 90px #000c; overflow: hidden; }
+.column-picker > header { display: flex; justify-content: space-between; gap: 20px; padding: 17px 19px; border-bottom: 1px solid var(--border-subtle); }
+.column-picker h2 { margin: 3px 0 0; color: var(--text); font-size: var(--text-xl); }
+.column-picker p { margin: 5px 0 0; color: var(--text-muted); font-size: var(--text-sm); }
+.column-picker > header button { align-self: flex-start; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 22px; }
+.column-picker-list { min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); overflow: auto; }
+.column-picker fieldset { min-width: 0; margin: 0; padding: 15px 16px 22px; border: 0; border-right: 1px solid var(--border-subtle); }
+.column-picker fieldset:last-child { border-right: 0; }
+.column-picker legend { width: 100%; padding: 0 0 8px; color: var(--text-muted); font: var(--text-xs) var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.column-picker legend small { float: right; color: var(--text-faint); font-size: var(--text-xs); letter-spacing: 0; text-transform: none; }
+.column-picker fieldset label { min-width: 0; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 29px; color: var(--text-secondary); font-size: var(--text-sm); }
+.column-picker fieldset input { accent-color: var(--teal); }
+.column-picker fieldset input:disabled + span { color: var(--text-faint); }
+.column-picker fieldset code { max-width: 140px; overflow: hidden; color: var(--text-faint); text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
+.column-picker fieldset p { font: var(--text-xs) var(--font-mono); }
+.column-picker > footer { display: flex; justify-content: space-between; padding: 11px 18px; border-top: 1px solid var(--border-subtle); }
+.column-picker > footer button { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-overlay); padding: 7px 10px; color: var(--text-secondary); cursor: pointer; font-size: var(--text-sm); }
 .group-table-scroll { min-height: 0; overflow: auto; }
 .group-table { width: 100%; border-collapse: collapse; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .group-table th { position: sticky; z-index: 1; top: 0; height: 34px; padding: 0 11px; border-bottom: 1px solid var(--line); background: #11151a; text-align: right; white-space: nowrap; }

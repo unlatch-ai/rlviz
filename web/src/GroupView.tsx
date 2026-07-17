@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { matchesCohortQuery, parseCohortQuery } from "./cohortQuery";
 import type { CohortQueryRow, CohortScalar } from "./cohortQuery";
+import { loadGroupColumnLayout, optionalBuiltinColumns, resetGroupColumnLayout, saveGroupColumnLayout } from "./columnLayout";
+import type { GroupColumnLayout, OptionalBuiltinColumn } from "./columnLayout";
 import { bindingLabel, commandIds, useCommands, useKeymapRevision } from "./commands";
 import type { GroupPathNode, GroupPathsResponse, GroupResponse, GroupTrajectorySummary, Trajectory } from "./types";
 
@@ -11,7 +13,9 @@ type Column = { key: string; label: string; signal?: string };
 type Row = CohortQueryRow;
 type FlatPath = { node: GroupPathNode; branch: boolean };
 const MaxSignalColumns = 8;
+const MaxDiscoveredSignals = 64;
 const knownSignalNames = new Set(["reward", "pass", "success", "outcome", "event_count", "error_count", "token_count", "latency_ms", "duration_ms"]);
+const builtinColumnLabels: Record<OptionalBuiltinColumn, string> = { reward: "Reward", pass: "Pass", status: "Status", termination: "Termination", events: "Events", errors: "Errors", tokens: "Tokens", latency: "Latency" };
 
 function flattenPaths(nodes: GroupPathNode[], branch = false): FlatPath[] {
   return nodes.flatMap((node) => [{ node, branch }, ...flattenPaths(node.children, node.children.length > 1)]);
@@ -115,22 +119,32 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [mode, setMode] = useState<"trajectories" | "paths">("trajectories");
   const [selectedPath, setSelectedPath] = useState(0);
+  const [columnLayout, setColumnLayout] = useState<GroupColumnLayout>(() => loadGroupColumnLayout());
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const columnsButtonRef = useRef<HTMLButtonElement>(null);
+  const columnsCloseRef = useRef<HTMLButtonElement>(null);
+  const columnsWereOpen = useRef(false);
   const flatPaths = useMemo(() => flattenPaths(paths?.tree.children ?? []), [paths]);
 
-  const columns = useMemo<Column[]>(() => {
-    const known = ([
-    ["reward", "Reward"], ["pass", "Pass"], ["status", "Status"], ["termination", "Termination"],
-    ["events", "Events"], ["errors", "Errors"], ["tokens", "Tokens"], ["latency", "Latency"],
-    ] as [KnownKey, string][]).filter(([key]) => rows.some((row) => rowValue(row, key) !== undefined)).map(([key, label]) => ({ key, label }));
+  const builtinColumns = useMemo<Column[]>(() => optionalBuiltinColumns
+    .filter((key) => rows.some((row) => rowValue(row, key) !== undefined))
+    .map((key) => ({ key, label: builtinColumnLabels[key] })), [rows]);
+  const allSignalColumns = useMemo<Column[]>(() => {
     const coverage = new Map<string, number>();
     rows.forEach((row) => Object.keys(row.signals).forEach((name) => {
       if (!knownSignalNames.has(name.toLowerCase())) coverage.set(name, (coverage.get(name) ?? 0) + 1);
     }));
-    const dynamic = [...coverage].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, MaxSignalColumns)
+    return [...coverage].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, MaxDiscoveredSignals)
       .map(([name]) => ({ key: `signal:${name}`, label: signalLabel(name), signal: name }));
-    return [...known, ...dynamic];
   }, [rows]);
+  const defaultSignalNames = useMemo(() => allSignalColumns.slice(0, MaxSignalColumns).map((column) => column.signal!), [allSignalColumns]);
+  const selectedSignalNames = columnLayout.signalNames ?? defaultSignalNames;
+  const selectedSignalSet = useMemo(() => new Set(selectedSignalNames), [selectedSignalNames]);
+  const columns = useMemo<Column[]>(() => [
+    ...builtinColumns.filter((column) => !columnLayout.hiddenBuiltins.includes(column.key as OptionalBuiltinColumn)),
+    ...allSignalColumns.filter((column) => selectedSignalSet.has(column.signal!)).slice(0, MaxSignalColumns),
+  ], [allSignalColumns, builtinColumns, columnLayout.hiddenBuiltins, selectedSignalSet]);
   const signalColumnCount = columns.filter((column) => column.signal).length;
   const availableSignalCount = useMemo(() => new Set(rows.flatMap((row) => Object.keys(row.signals).filter((name) => !knownSignalNames.has(name.toLowerCase())))).size, [rows]);
   const parsedQuery = useMemo(() => parseCohortQuery(query), [query]);
@@ -150,6 +164,16 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
   const chooseSort = (key: string) => { if (sort === key) setDescending((value) => !value); else { setSort(key); setDescending(key !== "id"); } };
   const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
   const updateQuery = (value: string) => { setQuery(value); onQueryChange?.(value); };
+  const closeColumns = () => setColumnsOpen(false);
+  const updateColumnLayout = (next: GroupColumnLayout) => { setColumnLayout(next); saveGroupColumnLayout(next); };
+  const toggleBuiltinColumn = (key: OptionalBuiltinColumn) => updateColumnLayout({
+    ...columnLayout,
+    hiddenBuiltins: columnLayout.hiddenBuiltins.includes(key) ? columnLayout.hiddenBuiltins.filter((item) => item !== key) : [...columnLayout.hiddenBuiltins, key],
+  });
+  const toggleSignalColumn = (name: string) => {
+    const current = columnLayout.signalNames ?? defaultSignalNames;
+    updateColumnLayout({ ...columnLayout, signalNames: current.includes(name) ? current.filter((item) => item !== name) : [...current, name] });
+  };
   const selectRewardRank = (rank: "best" | "median" | "worst" | "outlier") => { const index = rewardRankIndex(visible, rank); if (index === undefined) return false; setSelected(index); };
   const selectNext = (predicate: (row: Row) => boolean) => {
     if (!visible.some(predicate)) return false;
@@ -161,6 +185,11 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
 
   useEffect(() => setSelected((index) => Math.min(index, Math.max(visible.length - 1, 0))), [visible.length]);
   useEffect(() => setSelectedPath((index) => Math.min(index, Math.max(flatPaths.length - 1, 0))), [flatPaths.length]);
+  useEffect(() => {
+    if (columnsOpen) columnsCloseRef.current?.focus();
+    else if (columnsWereOpen.current) columnsButtonRef.current?.focus();
+    columnsWereOpen.current = columnsOpen;
+  }, [columnsOpen]);
   useCommands("group", {
     [commandIds.group.back]: (event) => {
       const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
@@ -179,7 +208,12 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
     [commandIds.group.rewardOutlier]: () => selectRewardRank("outlier"),
     [commandIds.group.nextFailure]: () => selectNext((row) => row.pass === false),
     [commandIds.group.nextInfraFailure]: () => selectNext(isInfrastructureFailure),
-  }, mode === "trajectories");
+    [commandIds.group.toggleColumns]: () => setColumnsOpen((value) => !value),
+  }, mode === "trajectories" && !columnsOpen);
+  useCommands("group", {
+    [commandIds.group.back]: closeColumns,
+    [commandIds.group.toggleColumns]: closeColumns,
+  }, mode === "trajectories" && columnsOpen);
   useCommands("paths", {
     [commandIds.paths.back]: onClose,
     [commandIds.paths.togglePaths]: () => setMode("trajectories"),
@@ -218,7 +252,7 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
         {!flatPaths.length && <div className="group-empty">No behavioral events · {paths.tree.narrative_only_count} narrative-only trajectories</div>}
       </div> : <div className="group-empty">{pathsError || "Compact paths are still loading"}</div>}
     </section> : <section className="group-table-panel">
-      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" aria-invalid={queryDiagnostic ? true : undefined} aria-errormessage={queryDiagnostic ? "group-filter-error" : undefined} value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Filter · pass:false reward<0" title="Plain text or structured clauses, for example pass:false reward<0 signal.policy_reward<0" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label>{queryDiagnostic && <small id="group-filter-error" className="group-filter-error" role="status">{queryDiagnostic.message}</small>}<div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
+      <div className="group-tools"><label><span>⌕</span><input ref={searchRef} aria-label="Filter trajectories" aria-invalid={queryDiagnostic ? true : undefined} aria-errormessage={queryDiagnostic ? "group-filter-error" : undefined} value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Filter · pass:false reward<0" title="Plain text or structured clauses, for example pass:false reward<0 signal.policy_reward<0" /><kbd>{bindingLabel(commandIds.group.search)}</kbd></label>{queryDiagnostic && <small id="group-filter-error" className="group-filter-error" role="status">{queryDiagnostic.message}</small>}<div className="compare-tools"><span>{compareIds.length}/2 selected</span><button disabled={compareIds.length !== 2 || !onCompare} onClick={() => onCompare?.(compareIds[0], compareIds[1])}>Compare <kbd>{bindingLabel(commandIds.group.compare)}</kbd></button></div><button ref={columnsButtonRef} className="column-picker-button" aria-haspopup="dialog" aria-expanded={columnsOpen} onClick={() => setColumnsOpen(true)}>Columns <kbd>{bindingLabel(commandIds.group.toggleColumns)}</kbd></button>{availableSignalCount > 0 && <span title={`${availableSignalCount} scalar canonical signals available`}>{signalColumnCount}/{availableSignalCount} signals</span>}<span>{visible.length}/{rows.length}</span></div>
       <div className="group-table-scroll">
         <table className="group-table"><thead><tr><th className="compare-check-heading">Compare</th><th className="trajectory-column"><button onClick={() => chooseSort("id")}>Trajectory {sort === "id" ? (descending ? "↓" : "↑") : ""}</button></th>{columns.map(({ key, label, signal }) => <th key={key} title={signal ? `Canonical signal: ${signal}` : undefined}><button onClick={() => chooseSort(key)}>{label} {sort === key ? (descending ? "↓" : "↑") : ""}</button></th>)}<th></th></tr></thead>
           <tbody>{visible.map((row, index) => <tr key={row.id} className={`${index === selected ? "selected" : ""} ${compareIds.includes(row.id) ? "compare-selected" : ""}`} aria-selected={index === selected} onClick={() => setSelected(index)} onDoubleClick={() => onOpen(row.id)}>
@@ -229,6 +263,19 @@ export function GroupView({ group, paths, pathsError, initialQuery = "", onQuery
         {!visible.length && <div className="group-empty">{queryDiagnostic ? `Invalid filter · ${queryDiagnostic.message}` : "No matching trajectories"}</div>}
       </div>
     </section>}
+    {columnsOpen && <div className="column-picker-backdrop" onMouseDown={closeColumns}>
+      <section className="column-picker" role="dialog" aria-modal="true" aria-label="Table columns" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><span className="eyebrow">Saved locally</span><h2>Table columns</h2><p>Trajectory identity, comparison, and Open always remain visible.</p></div><button ref={columnsCloseRef} aria-label="Close table columns" onClick={closeColumns}>×</button></header>
+        <div className="column-picker-list">
+          <fieldset><legend>Metrics</legend>{builtinColumns.map((column) => <label key={column.key}><input type="checkbox" checked={!columnLayout.hiddenBuiltins.includes(column.key as OptionalBuiltinColumn)} onChange={() => toggleBuiltinColumn(column.key as OptionalBuiltinColumn)} /><span>{column.label}</span></label>)}</fieldset>
+          <fieldset><legend>Canonical signals <small>{signalColumnCount}/{MaxSignalColumns} shown</small></legend>{allSignalColumns.map((column) => {
+            const checked = selectedSignalSet.has(column.signal!);
+            return <label key={column.key} title={column.signal}><input type="checkbox" checked={checked} disabled={!checked && signalColumnCount >= MaxSignalColumns} onChange={() => toggleSignalColumn(column.signal!)} /><span>{column.label}</span><code>{column.signal}</code></label>;
+          })}{!allSignalColumns.length && <p>No additional scalar signals in this group.</p>}{availableSignalCount > MaxDiscoveredSignals && <p>Showing the {MaxDiscoveredSignals} highest-coverage signals.</p>}</fieldset>
+        </div>
+        <footer><button onClick={() => { setColumnLayout(resetGroupColumnLayout()); }}>Reset default</button><button onClick={closeColumns}>Done</button></footer>
+      </section>
+    </div>}
     <footer className="group-keybar"><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.togglePaths : commandIds.group.togglePaths)}</kbd> {mode === "paths" ? "trajectories" : "paths"}</span><span><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.next : commandIds.group.next)}</kbd><kbd>{bindingLabel(mode === "paths" ? commandIds.paths.previous : commandIds.group.previous)}</kbd> select</span>{mode === "paths" ? <><span><kbd>{bindingLabel(commandIds.paths.open)}</kbd> open sample</span></> : <><span><kbd>{bindingLabel(commandIds.group.toggleCompare)}</kbd> mark</span><span><kbd>{bindingLabel(commandIds.group.compare)}</kbd> compare</span><span><kbd>{bindingLabel(commandIds.group.best)}</kbd><kbd>{bindingLabel(commandIds.group.median)}</kbd><kbd>{bindingLabel(commandIds.group.worst)}</kbd> reward rank</span><span><kbd>{bindingLabel(commandIds.group.rewardOutlier)}</kbd> outlier</span><span><kbd>{bindingLabel(commandIds.group.nextFailure)}</kbd><kbd>{bindingLabel(commandIds.group.nextInfraFailure)}</kbd> failures</span><span><kbd>{bindingLabel(commandIds.group.open)}</kbd> open</span><span><kbd>{bindingLabel(commandIds.group.search)}</kbd> filter</span></>}</footer>
   </main>;
 }

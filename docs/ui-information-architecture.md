@@ -215,6 +215,12 @@ RLViz owns layout and interaction. Customization may declare fields, labels,
 signal formats, badges, artifact media types, inspector sections, themes, and
 keymaps. Arbitrary plugin JavaScript or CSS is not allowed in the core viewer.
 
+Group-table layouts follow the same boundary. Trajectory identity, comparison
+selection, and the open action are fixed; researchers can hide optional metrics
+and choose up to eight scalar canonical signals from a bounded discovery list.
+The preference is small, versioned local data. Invalid or unavailable browser
+storage falls back to coverage-ranked defaults without blocking the viewer.
+
 ## Empty, loading, and partial states
 
 - A source that is still indexing shows which data is usable now.

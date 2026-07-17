@@ -15,6 +15,7 @@ export const commandIds = {
     previous: "group.previous", open: "group.open", toggleCompare: "group.toggleCompare",
     compare: "group.compare", best: "group.best", median: "group.median", worst: "group.worst",
     rewardOutlier: "group.rewardOutlier", nextFailure: "group.nextFailure", nextInfraFailure: "group.nextInfraFailure",
+    toggleColumns: "group.toggleColumns",
   },
   paths: {
     back: "paths.back", togglePaths: "paths.togglePaths", next: "paths.next", previous: "paths.previous", open: "paths.open",
@@ -68,6 +69,7 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.group.rewardOutlier, scope: "group", label: "Select reward outlier", defaultBindings: ["u"] },
   { id: commandIds.group.nextFailure, scope: "group", label: "Jump to next failed trajectory", defaultBindings: ["f"] },
   { id: commandIds.group.nextInfraFailure, scope: "group", label: "Jump to next infrastructure failure", defaultBindings: ["i"] },
+  { id: commandIds.group.toggleColumns, scope: "group", label: "Configure table columns", defaultBindings: ["Shift+C"] },
 
   { id: commandIds.paths.back, scope: "paths", label: "Back to trajectory", defaultBindings: ["Escape"], allowInInput: true },
   { id: commandIds.paths.togglePaths, scope: "paths", label: "Back to trajectories", defaultBindings: ["p"] },
