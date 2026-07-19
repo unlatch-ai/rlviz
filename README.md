@@ -113,6 +113,22 @@ npm install --global rlviz
 
 The npm installer selects the matching macOS or Linux release and verifies its checksum. npm is an installation path only; the viewer itself remains a native Go binary.
 
+Homebrew, npm, and the shell installer install the `rlviz` executable. They do
+not modify a user's repositories or automatically install agent rules. The
+binary contains version-matched, reviewable instruction snippets for Codex,
+Claude Code, and Cursor. Print or explicitly create one with:
+
+```bash
+rlviz setup agent codex --print
+rlviz setup agent codex --dry-run --destination .agents/rlviz.md
+rlviz setup agent codex --write --destination .agents/rlviz.md
+```
+
+Writes are opt-in and create-only: RLViz never overwrites or silently edits a
+project's existing agent instructions. These snippets teach an agent how to
+open traces and build adapters; they are not executable plugins or globally
+installed skills.
+
 ## Design principles
 
 - **Local first.** No account, upload, instrumentation SDK, or hosted service required.
