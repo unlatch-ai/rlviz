@@ -40,6 +40,7 @@ customization contract. Presentation files are strict, bounded JSON and never
 grant plugin trust or permission to inject HTML, CSS, JavaScript, selectors,
 URLs, or arbitrary inspector templates. Inspector layouts may only order or
 hide fixed core-owned section IDs; selected identity and raw access remain
-invariant. Runtime validation additionally checks
-semantic color contrast and same-scope keymap conflicts, which JSON Schema
-alone cannot express.
+invariant. Runtime validation additionally resolves partial light/dark palette
+overrides, normalizes three-digit hex colors, falls back with a viewer notice
+when a color is invalid, and checks same-scope keymap conflicts. JSON Schema
+alone cannot express those runtime behaviors.

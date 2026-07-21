@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
 )
 
 type formatInfo struct {

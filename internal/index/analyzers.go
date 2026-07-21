@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/analyzers"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/analyzers"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 // LoopRetryAnalysis returns a validated cached analysis when the analyzer and

@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/internal/alignment"
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/alignment"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 const (

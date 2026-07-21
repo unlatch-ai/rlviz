@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/app"
-	"github.com/unlatch-ai/rlviz/internal/daemon"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
-	"github.com/unlatch-ai/rlviz/internal/plugins/sourceprofile"
+	"github.com/TheSnakeFang/rlviz/internal/app"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/plugins/sourceprofile"
 )
 
 var version = "0.0.0-dev"
@@ -29,12 +29,14 @@ type result struct {
 }
 
 type openResult struct {
-	URL      string `json:"url"`
-	Path     string `json:"path"`
-	SourceID string `json:"source_id,omitempty"`
-	Command  string `json:"command"`
-	Mode     string `json:"mode"`
-	Started  bool   `json:"daemon_started,omitempty"`
+	URL       string   `json:"url"`
+	Path      string   `json:"path"`
+	SourceID  string   `json:"source_id,omitempty"`
+	Paths     []string `json:"paths,omitempty"`
+	SourceIDs []string `json:"source_ids,omitempty"`
+	Command   string   `json:"command"`
+	Mode      string   `json:"mode"`
+	Started   bool     `json:"daemon_started,omitempty"`
 }
 
 type pluginInitSource struct {
@@ -70,6 +72,8 @@ func main() {
 		printHelp()
 	case "open":
 		runOpen(os.Args[2:])
+	case "init":
+		runInit(os.Args[2:])
 	case "demo":
 		runDemo(os.Args[2:])
 	case "serve":
@@ -111,11 +115,12 @@ func runOpen(arguments []string) {
 	flags := flag.NewFlagSet("open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	noOpen := flags.Bool("no-open", false, "do not open the browser")
+	tuiMode := flags.Bool("tui", false, "open the terminal viewer")
 	jsonOutput := flags.Bool("json", false, "print machine-readable output")
 	adapter := flags.String("adapter", "", "trusted adapter plugin path")
 	presentationPath := flags.String("presentation", "", "validated declarative presentation JSON")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: rlviz open [--no-open] [--json] [--adapter PATH] [--presentation FILE] SOURCE")
+		fmt.Fprintln(flags.Output(), "Usage: rlviz open [--no-open] [--tui] [--json] [--adapter PATH] [--presentation FILE] SOURCE")
 	}
 	if err := flags.Parse(normalizeViewerArguments(arguments)); err != nil {
 		os.Exit(2)
@@ -129,7 +134,42 @@ func runOpen(arguments []string) {
 	if err != nil {
 		fatalError("open", *jsonOutput, err)
 	}
+	config, configured, err := loadUserConfig()
+	if err != nil {
+		fatalError("open", *jsonOutput, err)
+	}
+	if !configured {
+		fmt.Fprintln(os.Stderr, "Hint: run `rlviz init` to choose browser/TUI defaults and install optional agent skills.")
+	}
+	if *tuiMode && *jsonOutput {
+		fatalError("open", true, errors.New("--tui cannot be combined with --json"))
+	}
+	mode := preferredOpenMode(config, configured, *tuiMode, *jsonOutput)
+	if mode == "tui" {
+		if err := runTUI(flags.Arg(0), *adapter); err != nil {
+			fatalError("open", false, err)
+		}
+		return
+	}
 	openSource(flags.Arg(0), *adapter, presentationConfig, *noOpen, *jsonOutput, "open")
+	if mode == "both" {
+		if err := runTUI(flags.Arg(0), *adapter); err != nil {
+			fatalError("open", false, err)
+		}
+	}
+}
+
+func preferredOpenMode(config userConfig, configured, tuiMode, jsonOutput bool) string {
+	if jsonOutput {
+		return "browser"
+	}
+	if tuiMode {
+		return "tui"
+	}
+	if configured {
+		return config.OpenMode
+	}
+	return "browser"
 }
 
 func runServe(arguments []string) {
@@ -739,6 +779,7 @@ func printHelp() {
 Visualize and compare agent rollouts.
 
 Usage:
+  rlviz init [--yes]
   rlviz demo [--no-open] [--json]
   rlviz open [--no-open] [--json] [--adapter PATH] [--presentation FILE] SOURCE
   rlviz serve [--open] [--port PORT] [--json] [--adapter PATH] [--presentation FILE] SOURCE

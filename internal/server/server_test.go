@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,14 +13,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func TestListenLoopback(t *testing.T) {
 	listener, err := ListenLoopback(0)
 	if err != nil {
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+			t.Skipf("loopback listeners are unavailable in this test environment: %v", err)
+		}
 		t.Fatalf("ListenLoopback() error = %v", err)
 	}
 	defer listener.Close()

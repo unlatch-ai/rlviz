@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func TestProgressiveFilePublishesBatchesWhileGrowing(t *testing.T) {

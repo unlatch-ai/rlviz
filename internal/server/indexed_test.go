@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func testIndexedHandler(t *testing.T) http.Handler {
@@ -110,6 +110,22 @@ func TestIndexedTrajectoryReturnsSourcePresentation(t *testing.T) {
 	presentation, ok := decodeIndexedResponse(t, response)["presentation"].(map[string]any)
 	if !ok || presentation["api_version"] != "rlviz.dev/v1alpha1" {
 		t.Fatalf("presentation=%#v", presentation)
+	}
+}
+
+func TestIndexedBrowseReturnsTheKnownCollection(t *testing.T) {
+	response := indexedRequest(t, testIndexedHandler(t), http.MethodGet, "/api/v1/indexed/browse", true)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	payload := decodeIndexedResponse(t, response)
+	rows, ok := payload["trajectories"].([]any)
+	if !ok || len(rows) < 2 {
+		t.Fatalf("trajectories=%#v", payload["trajectories"])
+	}
+	first := rows[0].(map[string]any)
+	if first["source_id"] != "source-group" || first["source_name"] != "group.ndjson" || first["trajectory"] == nil || first["metrics"] == nil {
+		t.Fatalf("first row=%#v", first)
 	}
 }
 

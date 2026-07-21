@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func comparisonHandler(t *testing.T, eventsPerLeft int) http.Handler {

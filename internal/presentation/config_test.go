@@ -84,6 +84,60 @@ func TestThemeRequiresReadableSemanticColors(t *testing.T) {
 	}
 }
 
+func TestPaletteResolvesPartialOverridesForBothModes(t *testing.T) {
+	config, err := Load(strings.NewReader(`{"api_version":"rlviz.dev/v1alpha1","palette":{"light":{"ctx":"#ABC"},"dark":{"good":"#123456"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Palette == nil || config.Palette.Light["ctx"] != "#aabbcc" || config.Palette.Dark["good"] != "#123456" {
+		t.Fatalf("palette overrides were not normalized: %#v", config.Palette)
+	}
+	if config.Palette.Light["page"] != "#f9f9f7" || config.Palette.Dark["page"] != "#0d0d0d" {
+		t.Fatalf("palette defaults were not filled: %#v", config.Palette)
+	}
+}
+
+func TestHighContrastPaletteResolvesEndToEnd(t *testing.T) {
+	config, err := Load(strings.NewReader(`{"api_version":"rlviz.dev/v1alpha1","palette":{"name":"high-contrast"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Palette == nil || config.Palette.Name != "high-contrast" || config.Palette.Light["ctx"] != "#005fcc" || config.Palette.Dark["ink"] != "#ffffff" {
+		t.Fatalf("unexpected high-contrast palette: %#v", config.Palette)
+	}
+	data, err := Normalize(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"name":"high-contrast"`)) || !bytes.Contains(data, []byte(`"failInfra":"#ff9a6c"`)) {
+		t.Fatalf("normalized palette is incomplete: %s", data)
+	}
+}
+
+func TestInvalidPaletteColorFallsBackWithNotice(t *testing.T) {
+	config, err := Load(strings.NewReader(`{"api_version":"rlviz.dev/v1alpha1","palette":{"light":{"ctx":"blue"}}}`))
+	if err != nil {
+		t.Fatalf("invalid palette colors must not hard fail: %v", err)
+	}
+	if config.Palette != nil || len(config.Notices) != 1 {
+		t.Fatalf("expected default fallback and notice, got palette=%#v notices=%#v", config.Palette, config.Notices)
+	}
+	data, err := Normalize(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte(`"palette"`)) || !bytes.Contains(data, []byte(`"notices":["Palette ignored`)) {
+		t.Fatalf("fallback was not surfaced in normalized output: %s", data)
+	}
+	roundTrip, err := NormalizeJSON(data)
+	if err != nil {
+		t.Fatalf("daemon-side independent validation rejected the normalized notice: %v", err)
+	}
+	if !bytes.Contains(roundTrip, []byte(`"notices":["Palette ignored`)) {
+		t.Fatalf("daemon-side normalization lost the notice: %s", roundTrip)
+	}
+}
+
 func TestLoadIsBounded(t *testing.T) {
 	if _, err := Load(strings.NewReader(strings.Repeat(" ", MaxBytes+1))); err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("expected size error, got %v", err)
@@ -91,7 +145,7 @@ func TestLoadIsBounded(t *testing.T) {
 }
 
 func TestSchemaAcceptsRuntimeValidDocument(t *testing.T) {
-	data := []byte(`{"api_version":"rlviz.dev/v1alpha1","fields":{"pass":{"label":"Passed"}},"group":{"columns":["reward"]},"inspector":{"sections":["analysis","properties"]},"theme":{"focus":"#8be6d0"}}`)
+	data := []byte(`{"api_version":"rlviz.dev/v1alpha1","fields":{"pass":{"label":"Passed"}},"group":{"columns":["reward"]},"inspector":{"sections":["analysis","properties"]},"theme":{"focus":"#8be6d0"},"palette":{"name":"high-contrast","light":{"ctx":"#005fcc"},"dark":{"ctx":"#66aaff"}}}`)
 	schemaData, err := os.ReadFile(filepath.Join("..", "..", "schemas", "v1alpha1", "presentation-config.schema.json"))
 	if err != nil {
 		t.Fatal(err)

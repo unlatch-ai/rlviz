@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
-	"github.com/unlatch-ai/rlviz/internal/presentation"
+	"github.com/TheSnakeFang/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/presentation"
 )
 
 var ErrNotFound = errors.New("indexed rollout not found")

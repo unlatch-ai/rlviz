@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
 )
 
 func TestCollectFormatsAlwaysReportsCanonicalNDJSON(t *testing.T) {

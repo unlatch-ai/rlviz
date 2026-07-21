@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/daemon"
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/server"
-	"github.com/unlatch-ai/rlviz/internal/watch"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/server"
+	"github.com/TheSnakeFang/rlviz/internal/watch"
 )
 
 // RunDaemon serves the authenticated per-user registry until stopped through

@@ -1,15 +1,22 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
+
+type testListener struct{ address net.Addr }
+
+func (listener testListener) Accept() (net.Conn, error) { return nil, errors.New("test listener") }
+func (listener testListener) Close() error              { return nil }
+func (listener testListener) Addr() net.Addr            { return listener.address }
 
 func TestForegroundViewerValidatesPresentationBeforeSource(t *testing.T) {
 	_, err := StartViewer(Viewer{
@@ -22,18 +29,12 @@ func TestForegroundViewerValidatesPresentationBeforeSource(t *testing.T) {
 }
 
 func TestForegroundViewerRequiresFragmentToken(t *testing.T) {
-	viewer, err := StartViewer(Viewer{SourcePath: filepath.Join("..", "..", "fixtures", "canonical", "linear.ndjson")})
+	listener := testListener{address: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4173}}
+	viewer, err := startViewer(Viewer{SourcePath: filepath.Join("..", "..", "fixtures", "canonical", "linear.ndjson")}, listener)
 	if err != nil {
 		t.Fatal(err)
 	}
-	serveDone := make(chan error, 1)
-	go func() { serveDone <- viewer.Serve() }()
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_ = viewer.Shutdown(ctx)
-		<-serveDone
-	}()
+	defer viewer.runCleanup()
 
 	viewerURL, err := url.Parse(viewer.URL)
 	if err != nil {
@@ -44,26 +45,66 @@ func TestForegroundViewerRequiresFragmentToken(t *testing.T) {
 	if err != nil || values.Get("token") == "" {
 		t.Fatalf("viewer URL has no token fragment: %s", viewer.URL)
 	}
-	endpoint := "http://" + viewerURL.Host + "/api/v1/trajectory?" + viewerURL.RawQuery
-	response, err := http.Get(endpoint)
-	if err != nil {
-		t.Fatal(err)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/indexed/browse", nil)
+	response := httptest.NewRecorder()
+	viewer.Server.Handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated status = %d", response.Code)
 	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated status = %d", response.StatusCode)
-	}
-	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/indexed/browse", nil)
 	request.Header.Set("Authorization", "Bearer "+values.Get("token"))
-	response, err = http.DefaultClient.Do(request)
+	response = httptest.NewRecorder()
+	viewer.Server.Handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"count":1`) {
+		t.Fatalf("authenticated browse = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestForegroundViewerRotatesTokenAcrossRestart(t *testing.T) {
+	source := filepath.Join("..", "..", "fixtures", "canonical", "linear.ndjson")
+	first, err := startViewer(Viewer{SourcePath: source}, testListener{address: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4173}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("authenticated status = %d", response.StatusCode)
+	firstURL, err := url.Parse(first.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstToken, err := url.ParseQuery(firstURL.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.runCleanup()
+
+	second, err := startViewer(Viewer{SourcePath: source}, testListener{address: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4173}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.runCleanup()
+	secondURL, err := url.Parse(second.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondToken, err := url.ParseQuery(secondURL.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstToken.Get("token") == secondToken.Get("token") {
+		t.Fatal("foreground restart reused its bearer token")
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/indexed/browse", nil)
+	request.Header.Set("Authorization", "Bearer "+firstToken.Get("token"))
+	response := httptest.NewRecorder()
+	second.Server.Handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("rotated daemon accepted stale token: status=%d body=%s", response.Code, response.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/indexed/browse", nil)
+	request.Header.Set("Authorization", "Bearer "+secondToken.Get("token"))
+	response = httptest.NewRecorder()
+	second.Server.Handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("rotated daemon rejected fresh token: status=%d body=%s", response.Code, response.Body.String())
 	}
 }

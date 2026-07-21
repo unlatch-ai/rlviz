@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
 )
 
 func TestIndexSourceCanonicalCachesWholeGroup(t *testing.T) {

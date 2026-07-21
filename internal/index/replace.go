@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 // Replace validates and indexes a canonical NDJSON stream in one transaction.

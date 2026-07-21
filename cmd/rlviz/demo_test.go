@@ -1,12 +1,19 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
-	fixturedata "github.com/unlatch-ai/rlviz/fixtures"
-	"github.com/unlatch-ai/rlviz/internal/daemon"
+	fixturedata "github.com/TheSnakeFang/rlviz/fixtures"
+	"github.com/TheSnakeFang/rlviz/internal/app"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/server"
 )
 
 func TestEnsureDemoSourceInstallsPrivateEmbeddedFixture(t *testing.T) {
@@ -42,6 +49,44 @@ func TestEnsureDemoSourceInstallsPrivateEmbeddedFixture(t *testing.T) {
 	info, err = os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("secured idempotent mode = %o, %v", info.Mode().Perm(), err)
+	}
+}
+
+func TestEnsureGallerySourcesPopulateBrowse(t *testing.T) {
+	paths := daemon.PathsAt(filepath.Join(t.TempDir(), "runtime"))
+	galleryPaths, err := ensureGallerySources(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(galleryPaths) != 3 {
+		t.Fatalf("gallery paths = %d, want 3", len(galleryPaths))
+	}
+	store, err := rolloutindex.Open(filepath.Join(t.TempDir(), "gallery.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, path := range galleryPaths {
+		if _, err := app.IndexSource(context.Background(), store, path, ""); err != nil {
+			t.Fatalf("index %s: %v", path, err)
+		}
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/indexed/browse", nil)
+	request.Header.Set("Authorization", "Bearer gallery-token")
+	response := httptest.NewRecorder()
+	server.NewIndexedHandler(store, "gallery-token").ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("browse status=%d body=%s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Sources      []any `json:"sources"`
+		Trajectories []any `json:"trajectories"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Sources) != 3 || len(payload.Trajectories) != 18 {
+		t.Fatalf("browse sources=%d trajectories=%d", len(payload.Sources), len(payload.Trajectories))
 	}
 }
 

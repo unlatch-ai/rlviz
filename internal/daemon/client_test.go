@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -12,7 +11,7 @@ import (
 func TestClientAuthenticatedLifecycleRequests(t *testing.T) {
 	tokenMetadata := testMetadata(t, "127.0.0.1:1")
 	requests := make(chan string, 3)
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	server := newLoopbackTestServer(t, http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if got, want := request.Header.Get("Authorization"), "Bearer "+tokenMetadata.Token; got != want {
 			t.Errorf("Authorization = %q, want %q", got, want)
 			http.Error(response, "unauthorized", http.StatusUnauthorized)
@@ -74,11 +73,11 @@ func TestClientAuthenticatedLifecycleRequests(t *testing.T) {
 func TestClientRejectsRedirectWithoutLeakingToken(t *testing.T) {
 	tokenMetadata := testMetadata(t, "127.0.0.1:1")
 	receivedAtTarget := false
-	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	target := newLoopbackTestServer(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		receivedAtTarget = true
 	}))
 	defer target.Close()
-	redirector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	redirector := newLoopbackTestServer(t, http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		http.Redirect(response, request, target.URL, http.StatusTemporaryRedirect)
 	}))
 	defer redirector.Close()

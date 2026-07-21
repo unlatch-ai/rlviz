@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -44,7 +43,7 @@ func TestLoadLiveMetadataRemovesStaleRecord(t *testing.T) {
 func TestManagerEnsureStartsAndThenReusesDaemon(t *testing.T) {
 	paths := PathsAt(filepath.Join(t.TempDir(), "runtime"))
 	metadata := testMetadata(t, "127.0.0.1:1")
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	server := newLoopbackTestServer(t, http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer "+metadata.Token {
 			http.Error(response, "unauthorized", http.StatusUnauthorized)
 			return
@@ -93,7 +92,7 @@ func TestManagerEnsureReplacesOlderDaemonVersion(t *testing.T) {
 	paths := PathsAt(filepath.Join(t.TempDir(), "runtime"))
 	metadata := testMetadata(t, "127.0.0.1:1")
 	metadata.Version = "0.1.0"
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	server := newLoopbackTestServer(t, http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer "+metadata.Token {
 			http.Error(response, "unauthorized", http.StatusUnauthorized)
 			return

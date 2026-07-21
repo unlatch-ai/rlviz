@@ -6,6 +6,12 @@
   "required": ["api_version"],
   "properties": {
     "api_version": { "const": "rlviz.dev/v1alpha1" },
+    "notices": {
+      "type": "array",
+      "readOnly": true,
+      "maxItems": 4,
+      "items": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[^\\x00-\\x1F\\x7F]+$" }
+    },
     "fields": {
       "type": "object",
       "maxProperties": 64,
@@ -87,6 +93,15 @@
         "enum": ["surface_canvas", "surface_panel", "surface_raised", "surface_overlay", "border_subtle", "border_strong", "text_primary", "text_secondary", "text_muted", "text_faint", "focus", "selection", "success", "info", "warning", "danger", "context_change"]
       },
       "additionalProperties": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+    },
+    "palette": {
+      "type": "object",
+      "properties": {
+        "name": { "const": "high-contrast" },
+        "light": { "$ref": "#/$defs/palette_variant" },
+        "dark": { "$ref": "#/$defs/palette_variant" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
@@ -99,12 +114,21 @@
       "type": "string",
       "pattern": "^(reward|events|errors|tokens|latency|signal:[A-Za-z0-9][A-Za-z0-9._-]{0,127})$"
     },
+    "palette_variant": {
+      "type": "object",
+      "maxProperties": 10,
+      "propertyNames": {
+        "enum": ["ctx", "failPolicy", "failInfra", "good", "page", "surface", "ink", "inkSecondary", "muted", "hairline"]
+      },
+      "additionalProperties": { "type": "string", "pattern": "^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$" }
+    },
     "command_id": {
       "enum": [
-        "trajectory.dismiss", "trajectory.search", "trajectory.next", "trajectory.previous", "trajectory.nextError", "trajectory.nextReward", "trajectory.nextContext", "trajectory.nextFinding", "trajectory.nextArtifact", "trajectory.toggleRaw", "trajectory.openGroup", "trajectory.toggleHelp", "trajectory.toggleExpanded", "trajectory.openTranscript", "trajectory.openTimeline", "trajectory.openOutcome",
-        "group.back", "group.togglePaths", "group.search", "group.next", "group.previous", "group.open", "group.toggleCompare", "group.compare", "group.best", "group.median", "group.worst", "group.rewardOutlier", "group.nextFailure", "group.nextInfraFailure", "group.toggleColumns",
+        "trajectory.dismiss", "trajectory.search", "trajectory.next", "trajectory.previous", "trajectory.nextError", "trajectory.nextReward", "trajectory.nextContext", "trajectory.nextFinding", "trajectory.nextArtifact", "trajectory.toggleRaw", "trajectory.openGroup", "trajectory.toggleHelp", "trajectory.toggleExpanded", "trajectory.openTranscript", "trajectory.openTimeline", "trajectory.openOutcome", "trajectory.nextRollout", "trajectory.previousRollout", "trajectory.ascend", "trajectory.markIn", "trajectory.markOut", "trajectory.goto", "trajectory.replay", "trajectory.pivotAggregate", "trajectory.dropMarker", "trajectory.cycleMarkers",
+        "view.fidelityUp", "view.fidelityDown", "view.zoomIn", "view.zoomOut", "view.zoomFit", "view.toggleHelp",
+        "group.back", "group.togglePaths", "group.search", "group.next", "group.previous", "group.open", "group.toggleCompare", "group.compare", "group.best", "group.median", "group.worst", "group.rewardOutlier", "group.nextFailure", "group.nextInfraFailure", "group.toggleColumns", "group.tagVerdict1", "group.tagVerdict2", "group.tagVerdict3", "group.tagVerdict4",
         "paths.back", "paths.togglePaths", "paths.next", "paths.previous", "paths.open",
-        "comparison.back", "comparison.next", "comparison.previous", "comparison.firstDivergence", "comparison.nextChange"
+        "comparison.back", "comparison.next", "comparison.previous", "comparison.firstDivergence", "comparison.nextChange", "comparison.toggleDivergenceCurve"
       ]
     }
   }

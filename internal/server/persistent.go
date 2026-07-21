@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/unlatch-ai/rlviz/internal/presentation"
+	"github.com/TheSnakeFang/rlviz/internal/presentation"
 )
 
 type PersistentRegistrar func(context.Context, string, string, json.RawMessage) (Registration, error)
