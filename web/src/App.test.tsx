@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { sampleTrajectory } from "./sample";
+import { emptyWorkspace, laneId, serializeWorkspace } from "./workspace";
 
 describe("instrument viewer", () => {
   afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); window.localStorage.clear(); document.documentElement.removeAttribute("data-theme"); });
@@ -38,12 +39,56 @@ describe("instrument viewer", () => {
 		fireEvent.keyDown(window, { key: "[" });
 		fireEvent.keyDown(window, { key: "[" });
 		expect(screen.getByText("texture", { selector: ".fidelity-readout b" })).toBeInTheDocument();
-		expect(document.querySelector(".cat-marks")).toBeInTheDocument();
+		expect(document.querySelector(".cat-texture")).toBeInTheDocument();
 		fireEvent.keyDown(window, { key: "[" });
 		expect(screen.getByText("marks", { selector: ".fidelity-readout b" })).toBeInTheDocument();
 		fireEvent.keyDown(window, { key: "[" });
 		expect(screen.getByText("hairline", { selector: ".fidelity-readout b" })).toBeInTheDocument();
 		expect(document.querySelector(".cat-line")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "table" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "caterpillars" })).not.toBeInTheDocument();
+  });
+
+  it("keeps pointer and keyboard layer transitions anchored to the selected moment", async () => {
+    await openRead();
+    const surfaceAnchor = screen.getByRole("region", { name: "Trajectory shape" }).getAttribute("data-selected-x");
+    fireEvent.keyDown(window, { key: "Enter" });
+    const episodes = screen.getByRole("region", { name: "Trajectory shape" });
+    expect(episodes).toHaveAttribute("data-selected-x", surfaceAnchor!);
+    fireEvent.click(document.querySelector(".episode-button.selected")!);
+    expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-depth", "3");
+    const compressed = screen.getByRole("region", { name: "Compressed trajectory shape" });
+    expect(compressed).toHaveAttribute("data-selected-x", surfaceAnchor!);
+    fireEvent.click(compressed.querySelector("svg")!);
+    expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-depth", "2");
+    expect(screen.getByRole("region", { name: "Trajectory shape" })).toHaveAttribute("data-selected-x", surfaceAnchor!);
+  });
+
+  it("traverses episodes and expands event scope for cross-episode landmarks", async () => {
+    await openRead();
+    fireEvent.keyDown(window, { key: "Enter" });
+    const initialEpisode = screen.getByRole("main", { name: "Read trajectory" }).getAttribute("data-episode");
+    fireEvent.keyDown(window, { key: "j" });
+    expect(screen.getByRole("main", { name: "Read trajectory" })).not.toHaveAttribute("data-episode", initialEpisode!);
+    fireEvent.keyDown(window, { key: "k" });
+    expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-episode", initialEpisode!);
+    fireEvent.keyDown(window, { key: "Enter" });
+    const beforePan = screen.getByRole("main", { name: "Read trajectory" }).getAttribute("data-axis-start");
+    fireEvent.keyDown(window, { key: "r" });
+    expect(screen.getByRole("main", { name: "Read trajectory" })).not.toHaveAttribute("data-episode", initialEpisode!);
+    expect(screen.getByRole("main", { name: "Read trajectory" })).not.toHaveAttribute("data-axis-start", beforePan!);
+  });
+
+  it("renders context lanes at Surface even when a deeper layer is stored", () => {
+    const state = emptyWorkspace();
+    const id = laneId("sample", sampleTrajectory.id);
+    state.lanes = [{ id, sourceId: "sample", trajectoryId: sampleTrajectory.id, band: "context", selected: 8, depth: 4, fidelity: 3, axis: { start: 1, end: 10 } }];
+    state.active = id;
+    window.history.replaceState({ rlvizWorkspace: state }, "", `/?workspace=${encodeURIComponent(serializeWorkspace(state))}`);
+    render(<App initialTrajectory={sampleTrajectory} />);
+    const lane = screen.getByRole("main", { name: `Context lane ${sampleTrajectory.id}` });
+    expect(lane).toHaveAttribute("data-depth", "1");
+    expect(lane).toHaveAttribute("data-stored-depth", "4");
   });
 
   it("switches light and dark mode through the data-theme attribute", () => {
@@ -84,11 +129,15 @@ describe("instrument viewer", () => {
 	await openRead();
 	fireEvent.keyDown(window, { key: "Enter" });
 	fireEvent.keyDown(window, { key: "Enter" });
-	expect(screen.getByText(/depth 3\/3/)).toBeInTheDocument();
+	fireEvent.keyDown(window, { key: "Enter" });
+	expect(screen.getByText(/depth 4\/4/)).toBeInTheDocument();
+	expect(screen.getByRole("region", { name: "Event source" })).toBeInTheDocument();
 	fireEvent.keyDown(window, { key: "Escape" });
-	expect(screen.getByText(/depth 2\/3/)).toBeInTheDocument();
+	expect(screen.getByText(/depth 3\/4/)).toBeInTheDocument();
 	fireEvent.keyDown(window, { key: "Escape" });
-	expect(screen.getByText(/depth 1\/3/)).toBeInTheDocument();
+	expect(screen.getByText(/depth 2\/4/)).toBeInTheDocument();
+	fireEvent.keyDown(window, { key: "Escape" });
+	expect(screen.getByText(/depth 1\/4/)).toBeInTheDocument();
 	fireEvent.keyDown(window, { key: "Escape" });
 	expect(screen.getByRole("main", { name: "Browse trajectories" })).toBeInTheDocument();
   });

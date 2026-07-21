@@ -41,6 +41,7 @@ describe("Browse Read Compare flow", () => {
 		expect(screen.getAllByRole("option")[0]).toHaveTextContent("candidate");
 		expect(screen.getByRole("option", { selected: true })).toHaveTextContent("candidate");
 		expect(screen.getByText(/2 unresolved/)).toBeInTheDocument();
+		fireEvent.keyDown(window, { key: "]" }); fireEvent.keyDown(window, { key: "]" });
 		fireEvent.keyDown(window, { key: "3" });
 		expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
 		expect(screen.getByRole("option", { selected: true })).toHaveTextContent("reference");

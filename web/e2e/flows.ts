@@ -9,6 +9,8 @@ export type Observable = {
   count?: number;
   boxEquals?: string;
   boxNotEquals?: string;
+  attributeEqualsCapture?: string;
+  attributeNotEqualsCapture?: string;
 };
 
 export type FlowAction =
@@ -17,12 +19,13 @@ export type FlowAction =
   | { kind: "click"; target: string; clicks?: number }
   | { kind: "strip-click"; eventIndex: number }
   | { kind: "capture-box"; target: string; key: string }
+  | { kind: "capture-attribute"; target: string; attribute: string; key: string }
   | { kind: "seam-drag"; name: "rail" | "focusContext" | "focusLane" | "console"; dx: number; dy: number }
   | { kind: "reload" }
   | { kind: "history-back" };
 
 export type FlowStep = { action: FlowAction; expect: Observable[] };
-export type Flow = { id: string; name: string; keyboardOnly: boolean; surfaces: Array<"daemon" | "webapp">; steps: FlowStep[]; webappSteps?: FlowStep[] };
+export type Flow = { id: string; name: string; keyboardOnly: boolean; surfaces: Array<"daemon" | "webapp">; steps: FlowStep[]; webappSteps?: FlowStep[]; webappExample?: string };
 
 const mode = (target: Observable["target"]): Observable => ({ target });
 const selectedRow = (id: string): Observable => ({ target: "selected-row", contains: id });
@@ -183,11 +186,17 @@ export const flows: Flow[] = [
     ],
   },
   {
-    id: "j", name: "rail-projection-with-lanes", keyboardOnly: false, surfaces: ["daemon"], steps: [
+    id: "j", name: "rail-fidelity-ladder-with-lanes", keyboardOnly: true, surfaces: ["daemon", "webapp"], steps: [
       { action: { kind: "key", value: "Enter" }, expect: [{ target: "focus-lane", count: 1 }] },
       { action: { kind: "key", value: "Tab" }, expect: [{ target: "shell", attribute: "data-active-zone", equals: "rail" }] },
-      { action: { kind: "click", target: ".rail-controls button:has-text('caterpillars')" }, expect: [{ target: "browse", attribute: "class", contains: "workspace-rail" }, { target: "focus-lane", count: 1 }] },
-      { action: { kind: "click", target: ".rail-controls button:has-text('table')" }, expect: [{ target: "focus-lane", count: 1 }] },
+      { action: { kind: "key", value: "[" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L2" }, { target: "rail", selector: ".cat-texture" }] },
+      { action: { kind: "key", value: "[" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L1" }, { target: "rail", selector: ".cat-marks" }] },
+      { action: { kind: "key", value: "[" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L0" }, { target: "rail", selector: ".cat-line" }, { target: "rail", selector: ".browse-row .verdict", absent: true }, { target: "rail", selector: ".browse-row .identity small", absent: true }] },
+      { action: { kind: "key", value: "]" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L1" }, { target: "rail", selector: ".browse-row .verdict" }] },
+      { action: { kind: "key", value: "]" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L2" }, { target: "rail", selector: ".cat-texture" }] },
+      { action: { kind: "key", value: "]" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L3" }, { target: "rail", selector: ".cat-glyphs" }] },
+      { action: { kind: "key", value: "]" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L4" }, { target: "rail", selector: ".browse-row", attribute: "data-columns", equals: "true" }, { target: "rail", selector: ".events-column" }, { target: "rail", selector: ".browse-row .identity small" }] },
+      { action: { kind: "key", value: "]" }, expect: [{ target: "rail", selector: ".browse-list", attribute: "data-fidelity-level", equals: "L5" }, { target: "rail", selector: ".row-state" }, { target: "focus-lane", count: 1 }] },
       { action: { kind: "key", value: "Shift+Tab" }, expect: [{ target: "focus-lane", selector: ".lane-track.active-zone" }] },
     ],
   },
@@ -215,6 +224,71 @@ export const flows: Flow[] = [
       { action: { kind: "key", value: "j" }, expect: [selectedRow("fourth")] },
       { action: { kind: "key", value: "a" }, expect: [attr("context-lane", "data-trajectory", "fourth")] },
       { action: { kind: "key", value: "n" }, expect: [attr("context-lane", "data-trajectory", "reference"), { target: "focus-lane", selector: ".focus-lane[data-trajectory='candidate']" }, { target: "focus-lane", selector: ".focus-lane[data-trajectory='partial']" }] },
+    ],
+  },
+  {
+    id: "m", name: "episode-pointer-descend-strip-ascend", keyboardOnly: false, surfaces: ["daemon"], steps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1"), selectedEvent("Policy error")] },
+      { action: { kind: "capture-attribute", target: ".shape-strip", attribute: "data-selected-x", key: "layer-anchor" }, expect: [selectedEvent("Policy error")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2"), attr("read", "data-episode", "stage:verify"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }, { target: "rail", selector: ".episode-button.selected", attribute: "data-episode-key", equals: "stage:verify" }] },
+      { action: { kind: "click", target: ".episode-button.selected" }, expect: [attr("read", "data-depth", "3"), attr("read", "data-episode", "stage:verify"), attr("read", "data-axis-start", "29.4000"), attr("read", "data-axis-end", "30.4000"), { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "click", target: ".shape-strip.compact svg" }, expect: [attr("read", "data-depth", "2"), attr("read", "data-episode", "stage:verify"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+    ],
+  },
+  {
+    id: "n", name: "episode-keyboard-descend-ascend-twin", keyboardOnly: true, surfaces: ["daemon", "webapp"], steps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1"), selectedEvent("Policy error")] },
+      { action: { kind: "capture-attribute", target: ".shape-strip", attribute: "data-selected-x", key: "layer-anchor" }, expect: [selectedEvent("Policy error")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2"), attr("read", "data-episode", "stage:verify"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }, { target: "rail", selector: ".episode-button.selected", attribute: "data-episode-key", equals: "stage:verify" }] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "3"), attr("read", "data-episode", "stage:verify"), attr("read", "data-axis-start", "29.4000"), attr("read", "data-axis-end", "30.4000"), { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "4"), { target: "rail", selector: ".lane-source" }, { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Escape" }, expect: [attr("read", "data-depth", "3"), { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Escape" }, expect: [attr("read", "data-depth", "2"), attr("read", "data-episode", "stage:verify"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+    ],
+    webappSteps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1")] },
+      { action: { kind: "capture-attribute", target: ".shape-strip", attribute: "data-selected-x", key: "layer-anchor" }, expect: [{ target: "selected-event" }] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "3"), { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }, { target: "rail", selector: ".lane-events" }] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "4"), { target: "rail", selector: ".lane-source" }, { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Escape" }, expect: [attr("read", "data-depth", "3"), { target: "rail", selector: ".shape-strip.compact", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+      { action: { kind: "key", value: "Escape" }, expect: [attr("read", "data-depth", "2"), { target: "rail", selector: ".episode-strip", attribute: "data-selected-x", attributeEqualsCapture: "layer-anchor" }] },
+    ],
+  },
+  {
+    id: "o", name: "episode-j-k-traversal", keyboardOnly: true, surfaces: ["daemon", "webapp"], steps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2"), attr("read", "data-episode", "stage:verify")] },
+      { action: { kind: "key", value: "j" }, expect: [attr("read", "data-episode", "stage:outcome"), selectedEvent("Final reward"), { target: "rail", selector: ".episode-button.selected", attribute: "data-episode-key", equals: "stage:outcome" }] },
+      { action: { kind: "key", value: "k" }, expect: [attr("read", "data-episode", "stage:verify"), selectedEvent("Policy error")] },
+    ],
+    webappSteps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2")] },
+      { action: { kind: "capture-attribute", target: ".lane-track.active-zone", attribute: "data-episode", key: "episode-before" }, expect: [{ target: "rail", selector: ".episode-button.selected" }] },
+      { action: { kind: "key", value: "j" }, expect: [{ target: "read", attribute: "data-episode", attributeNotEqualsCapture: "episode-before" }, { target: "rail", selector: ".episode-button.selected" }] },
+      { action: { kind: "key", value: "k" }, expect: [{ target: "read", attribute: "data-episode", attributeEqualsCapture: "episode-before" }] },
+    ],
+  },
+  {
+    id: "p", name: "landmark-crosses-episode-boundary", keyboardOnly: true, surfaces: ["daemon", "webapp"], webappExample: "300-event coding trace", steps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "3"), attr("read", "data-episode", "stage:verify")] },
+      { action: { kind: "capture-attribute", target: ".lane-track.active-zone", attribute: "data-axis-start", key: "episode-axis" }, expect: [selectedEvent("Policy error")] },
+      { action: { kind: "key", value: "c" }, expect: [attr("read", "data-episode", "stage:setup"), selectedEvent("Context compacted"), { target: "read", attribute: "data-axis-start", attributeNotEqualsCapture: "episode-axis" }, { target: "rail", selector: ".lane-events", attribute: "data-episode-key", equals: "stage:setup" }] },
+    ],
+    webappSteps: [
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "1")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "2")] },
+      { action: { kind: "key", value: "Enter" }, expect: [attr("read", "data-depth", "3")] },
+      { action: { kind: "capture-attribute", target: ".lane-track.active-zone", attribute: "data-episode", key: "episode-before" }, expect: [{ target: "rail", selector: ".lane-events" }] },
+      { action: { kind: "capture-attribute", target: ".lane-track.active-zone", attribute: "data-axis-start", key: "episode-axis" }, expect: [{ target: "selected-event" }] },
+      // in the real bugfix trace the compaction sits INSIDE stage:diagnose, so
+      // `c` moves selection without switching episodes (that is correct
+      // behavior); the reward/grader landmark genuinely crosses into verify.
+      { action: { kind: "key", value: "c" }, expect: [{ target: "selected-event", contains: "ompact" }, { target: "read", attribute: "data-episode", attributeEqualsCapture: "episode-before" }] },
+      { action: { kind: "key", value: "r" }, expect: [{ target: "read", attribute: "data-episode", attributeNotEqualsCapture: "episode-before" }, { target: "read", attribute: "data-axis-start", attributeNotEqualsCapture: "episode-axis" }, { target: "rail", selector: ".lane-events" }] },
     ],
   },
 ];

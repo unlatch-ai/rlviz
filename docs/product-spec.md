@@ -176,12 +176,12 @@ Initial keybindings:
 | Key | Action |
 | --- | --- |
 | `j` / `k` | Next or previous event |
-| `Enter` | Inspect selected event |
+| `Enter` | Descend toward the selected event's Source layer |
 | `Space` | Expand or collapse |
 | `/` | Search |
 | `e` | Next error |
 | `r` | Next reward or grader event |
-| `x` | Toggle raw payload |
+| `x` | Close active lane |
 | `o` | Open selected artifact |
 | `m` | Show trajectory metadata |
 | `?` | Show keybindings |

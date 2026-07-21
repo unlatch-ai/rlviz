@@ -20,9 +20,8 @@ equivalent Browse, Read, and Compare arrangements.
 Three modes, one overlay class. No other top-level surfaces.
 
 - **Browse** — home: everything the daemon knows (sources, runs, cases,
-  groups) as one navigable collection with multiple *projections* of the
-  same list — dense table, caterpillar strips, by-case grouping — switched
-  by view keys, never separate pages. Triage (attention ordering, one-key
+  groups) as one navigable collection whose fidelity ladder changes the
+  single rail representation in place. Triage (attention ordering, one-key
   verdict tags, shrinking unresolved queue) is a capability of Browse when
   the collection is a cohort. Search/filter narrows in place.
 - **Read** — one trajectory. Default only for single-trajectory sources or
@@ -72,8 +71,8 @@ No transcript wall at t=0; prose is descended into.
   representation and screen allocation, not place. Other layers compress to
   orientation strips; the shared axis and playhead stay visible everywhere.
 - **Fidelity** (`[` / `]`): how much each unit renders — hairline strip →
-  marks → texture → glyph rows → one-line previews → full content. Global
-  per mode ("caterpillar" control in Browse).
+  marks → texture → glyph rows → one-line previews → full content. On the
+  rail this is the only representation control; there is no projection toggle.
 - **Axis zoom** (`+` / `-` / `0` fit): which span of the axis fills the
   viewport, anchored on the selection — the selected event's screen
   position does not move across zoom (verified property of the concept
@@ -221,6 +220,6 @@ it emits no color escape codes.
 
 A second renderer of the same spec, in the same binary (`--tui`): same
 modes, same command grammar, glyph column instead of SVG. v1 TUI scope:
-Browse (caterpillar + table projections), Read (strip + event list, depth/
+Browse (one fidelity-governed rail), Read (strip + event list, depth/
 fidelity/zoom/landmarks), pair compare, search. Artifacts open via
 `$EDITOR`/browser handoff.

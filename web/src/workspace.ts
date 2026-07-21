@@ -25,7 +25,6 @@ export interface SeamRatios {
 export interface WorkspaceState {
   version: 2;
   railExpanded: boolean;
-  railProjection: "table" | "caterpillar";
   railQuery: string;
   railSelected: number;
   lanes: WorkspaceLane[];
@@ -42,7 +41,6 @@ export function emptyWorkspace(): WorkspaceState {
   return {
     version: 2,
     railExpanded: true,
-    railProjection: "table",
     railQuery: "",
     railSelected: 0,
     lanes: [],
@@ -75,7 +73,7 @@ export function normalizeWorkspace(value: unknown): WorkspaceState | undefined {
     return [{
       id, sourceId: lane.sourceId, trajectoryId: lane.trajectoryId, band: lane.band,
       selected: clamp(finite(lane.selected) ? Math.round(lane.selected) : 0, 0, Number.MAX_SAFE_INTEGER),
-      depth: clamp(finite(lane.depth) ? Math.round(lane.depth) : 1, 1, 3),
+      depth: clamp(finite(lane.depth) ? Math.round(lane.depth) : 1, 1, 4),
       fidelity: clamp(finite(lane.fidelity) ? Math.round(lane.fidelity) : 3, 0, 5), axis,
     } satisfies WorkspaceLane];
   });
@@ -92,7 +90,6 @@ export function normalizeWorkspace(value: unknown): WorkspaceState | undefined {
   return {
     version: 2,
     railExpanded,
-    railProjection: raw.railProjection === "caterpillar" ? "caterpillar" : "table",
     railQuery: typeof raw.railQuery === "string" ? raw.railQuery.slice(0, 500) : "",
     railSelected: clamp(finite(raw.railSelected) ? Math.round(raw.railSelected) : 0, 0, Number.MAX_SAFE_INTEGER),
     lanes,
@@ -142,7 +139,7 @@ export function legacyWorkspace(search: string): WorkspaceState | undefined {
 }
 
 export function snapshotLabel(workspace: WorkspaceState): string {
-  if (!workspace.lanes.length) return `Browse · ${workspace.railProjection}`;
+  if (!workspace.lanes.length) return "Browse";
   const focus = workspace.lanes.filter((lane) => lane.band === "focus").length;
   const context = workspace.lanes.length - focus;
   const active = workspace.active === "rail" ? "rail" : workspace.lanes.find((lane) => lane.id === workspace.active)?.trajectoryId ?? "lane";

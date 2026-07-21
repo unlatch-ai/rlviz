@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attentionScore, stageChanged, stagesFor } from "./instrument";
+import { attentionScore, axisX, episodesFor, episodeWindow, stageChanged, stagesFor } from "./instrument";
 import type { BrowseTrajectory, ComparisonSide } from "./types";
 
 const row = (id: string, values: { errors?: number; pass?: boolean; reward?: number }): BrowseTrajectory => ({
@@ -51,6 +51,29 @@ describe("instrument projections", () => {
 	  { id: "work", sequence: 1, kind: "tool", alignment_key: "episode:work" },
 	] };
 	expect(stagesFor(side).tier).toBe("adapter episodes");
+  });
+
+  it("derives registered episode spans and deterministic fallback clusters", () => {
+    const explicit = episodesFor([
+      { id: "a", sequence: 0, kind: "message", alignment_key: "episode:setup" },
+      { id: "b", sequence: 3, kind: "tool", alignment_key: "episode:work" },
+      { id: "c", sequence: 7, kind: "error", alignment_key: "episode:work" },
+    ]);
+    expect(explicit.map((episode) => [episode.key, episode.startIndex, episode.endIndex, episode.inferred])).toEqual([
+      ["episode:setup", 0, 0, false], ["episode:work", 1, 2, false],
+    ]);
+    const fallback = episodesFor([
+      { id: "a", sequence: 0, kind: "message" }, { id: "b", sequence: 1, kind: "tool" },
+      { id: "c", sequence: 2, kind: "observation" }, { id: "d", sequence: 3, kind: "error" },
+      { id: "e", sequence: 4, kind: "error" }, { id: "f", sequence: 5, kind: "state", context: { operation: "compaction", provenance: "source_native" } },
+    ]);
+    expect(fallback.map((episode) => episode.label)).toEqual(["opening", "tool run", "errors", "context"]);
+  });
+
+  it("zooms to an episode without moving the selected event anchor", () => {
+    const before = { start: 0, end: 50 }, selected = 30;
+    const after = episodeWindow(before, { key: "verify", label: "verify", startIndex: 3, endIndex: 3, start: 30, end: 30, inferred: false }, selected);
+    expect(axisX(selected, after)).toBeCloseTo(axisX(selected, before));
   });
 
   it("compares within-stage behavioral outcomes as order-insensitive multisets", () => {

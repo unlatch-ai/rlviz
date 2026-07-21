@@ -4,12 +4,19 @@ import { defaultSeams, emptyWorkspace, laneId, legacyWorkspace, normalizeWorkspa
 describe("workspace arrangements", () => {
   it("round-trips lanes, per-lane view state, and seam ratios", () => {
     const workspace = emptyWorkspace();
-    workspace.lanes = [{ id: laneId("source", "one"), sourceId: "source", trajectoryId: "one", band: "focus", selected: 4, depth: 3, fidelity: 5, axis: { start: 10, end: 20 } }];
+    workspace.lanes = [{ id: laneId("source", "one"), sourceId: "source", trajectoryId: "one", band: "focus", selected: 4, depth: 4, fidelity: 5, axis: { start: 10, end: 20 } }];
     workspace.active = workspace.lanes[0].id;
     workspace.seams.rail = 0.31;
     const encoded = serializeWorkspace(workspace);
     expect(workspaceFromSearch(`?workspace=${encodeURIComponent(encoded)}`)).toEqual(workspace);
     expect(workspaceURL(workspace, { pathname: "/view", search: "?trajectory=old&mode=read", hash: "#token=x" } as Location)).toContain("workspace=");
+  });
+
+  it("ignores legacy rail projection fields and omits them when serializing", () => {
+    const legacy = { ...emptyWorkspace(), railProjection: "caterpillar" };
+    const normalized = normalizeWorkspace(legacy)!;
+    expect(normalized).not.toHaveProperty("railProjection");
+    expect(serializeWorkspace(normalized)).not.toContain("railProjection");
   });
 
   it("bounds untrusted ratios and keeps at most two focus lanes", () => {

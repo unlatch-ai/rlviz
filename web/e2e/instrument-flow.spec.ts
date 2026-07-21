@@ -66,10 +66,11 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("Browse into a multi-lane workspace preserves the instrument invariants", async ({ page }) => {
-  await expect(page.getByRole("main", { name: "Browse trajectories" })).toBeVisible();
-  await expect(page.getByRole("option").first()).toContainText("candidate");
-	await page.getByRole("button", { name: "caterpillars" }).click();
-	await expect(page.getByRole("listbox", { name: "Trajectory collection" })).toHaveClass(/projection-caterpillar/);
+	await expect(page.getByRole("main", { name: "Browse trajectories" })).toBeVisible();
+	await expect(page.getByRole("option").first()).toContainText("candidate");
+	await expect(page.getByRole("button", { name: "caterpillars" })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "table" })).toHaveCount(0);
+	await expect(page.getByRole("listbox", { name: "Trajectory collection" })).toHaveAttribute("data-fidelity-level", "L3");
 	await expect(page.locator(".cat-glyphs").first()).toContainText("✕");
 
   await page.keyboard.press("]");

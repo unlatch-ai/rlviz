@@ -2,6 +2,16 @@ import type { AnalysisResponse, BrowseTrajectory, ComparisonSide, Trajectory, Tr
 
 export type AxisWindow = { start: number; end: number };
 
+export type Episode = {
+  key: string;
+  label: string;
+  startIndex: number;
+  endIndex: number;
+  start: number;
+  end: number;
+  inferred: boolean;
+};
+
 export const glyphForKind = (kind: string): string => ({
   generation: "▸", message: "‒", observation: "·", error: "✕", tool: "▮",
   environment_action: "▮", reward: "◆", grader: "◆", state: "~", log: "·", artifact: "◆",
@@ -33,6 +43,78 @@ export function panWindowToInclude(window: AxisWindow, sequence: number, min: nu
   if (start < min) { start = min; end = Math.min(max, min + span); }
   if (end > max) { end = max; start = Math.max(min, max - span); }
   return { start, end };
+}
+
+function explicitEpisodePrefix(events: TrajectoryEvent[]): "episode:" | "stage:" | undefined {
+  if (events.some((event) => event.alignment_key?.startsWith("episode:"))) return "episode:";
+  if (events.some((event) => event.alignment_key?.startsWith("stage:"))) return "stage:";
+  return undefined;
+}
+
+function fallbackBoundary(events: TrajectoryEvent[], index: number): boolean {
+  if (index === 0) return true;
+  const event = events[index], previous = events[index - 1];
+  const context = (item: TrajectoryEvent) => !!item.context || !!item.alignment_key?.startsWith("context:");
+  if (context(event)) return true;
+  if (event.kind === "error" && previous.kind !== "error") return true;
+  if (previous.kind === "error" && event.kind !== "error") return true;
+  if ((event.kind === "tool" || event.kind === "environment_action") && previous.kind !== "tool" && previous.kind !== "environment_action") return true;
+  return false;
+}
+
+/** Deterministic, source-registered reading units for lane depth 2/3. */
+export function episodesFor(events: TrajectoryEvent[]): Episode[] {
+  if (!events.length) return [];
+  const prefix = explicitEpisodePrefix(events);
+  const starts: Array<{ index: number; key: string; label: string }> = [];
+  if (prefix) {
+    let current = "";
+    events.forEach((event, index) => {
+      const explicit = event.alignment_key?.startsWith(prefix) ? event.alignment_key : undefined;
+      if (!starts.length && !explicit) {
+        current = "opening";
+        starts.push({ index, key: current, label: "opening" });
+      } else if (explicit && explicit !== current) {
+        current = explicit;
+        starts.push({ index, key: explicit, label: explicit.slice(prefix.length) || explicit });
+      }
+    });
+  } else {
+    events.forEach((event, index) => {
+      if (!fallbackBoundary(events, index)) return;
+      const context = !!event.context || !!event.alignment_key?.startsWith("context:");
+      const label = context ? "context" : event.kind === "error" ? "errors" : event.kind === "tool" || event.kind === "environment_action" ? "tool run" : index === 0 ? "opening" : event.kind;
+      starts.push({ index, key: `inferred:${index}`, label });
+    });
+  }
+  return starts.map((start, index) => {
+    const endIndex = (starts[index + 1]?.index ?? events.length) - 1;
+    return {
+      key: start.key,
+      label: start.label,
+      startIndex: start.index,
+      endIndex,
+      start: events[start.index].sequence,
+      end: events[endIndex].sequence,
+      inferred: !prefix,
+    };
+  });
+}
+
+export function episodeIndexForEvent(episodes: Episode[], eventIndex: number): number {
+  const found = episodes.findIndex((episode) => eventIndex >= episode.startIndex && eventIndex <= episode.endIndex);
+  return found >= 0 ? found : 0;
+}
+
+/** Zoom around an episode while preserving the selected event's screen x. */
+export function episodeWindow(window: AxisWindow, episode: Episode, selectedSequence: number): AxisWindow {
+  const oldSpan = Math.max(1, window.end - window.start);
+  const fraction = Math.max(0.001, Math.min(0.999, (selectedSequence - window.start) / oldSpan));
+  const left = Math.max(0, selectedSequence - episode.start) / fraction;
+  const right = Math.max(0, episode.end - selectedSequence) / (1 - fraction);
+  const span = Math.max(1, left, right);
+  const start = selectedSequence - fraction * span;
+  return { start, end: start + span };
 }
 
 export function firstAnomaly(trajectory: Trajectory, analysis?: AnalysisResponse | null): number {

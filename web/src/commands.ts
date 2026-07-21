@@ -83,7 +83,8 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.trajectory.nextContext, scope: "trajectory", label: "Jump to next context change", defaultBindings: ["c"] },
   { id: commandIds.trajectory.nextFinding, scope: "trajectory", label: "Jump through analyzer findings", defaultBindings: ["a"] },
   { id: commandIds.trajectory.nextArtifact, scope: "trajectory", label: "Open next artifact", defaultBindings: ["o"] },
-  { id: commandIds.trajectory.toggleRaw, scope: "trajectory", label: "Toggle raw event record", defaultBindings: ["x"] },
+  // Kept as a stable legacy ID for imported keymaps; Source is now lane depth 4.
+  { id: commandIds.trajectory.toggleRaw, scope: "trajectory", label: "Legacy raw event toggle", defaultBindings: [] },
   { id: commandIds.trajectory.openGroup, scope: "trajectory", label: "Compare trajectory group", defaultBindings: ["g"] },
   { id: commandIds.trajectory.toggleHelp, scope: "overlay", label: "Toggle keyboard shortcuts", defaultBindings: ["?"] },
   { id: commandIds.trajectory.toggleExpanded, scope: "trajectory", label: "Expand selected event", defaultBindings: ["Enter", "Space"] },

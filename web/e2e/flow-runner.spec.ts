@@ -80,11 +80,12 @@ function target(page: Page, observable: Observable): Locator {
   }
 }
 
-async function act(page: Page, action: FlowAction, boxes: Map<string, Awaited<ReturnType<Locator["boundingBox"]>>>) {
+async function act(page: Page, action: FlowAction, boxes: Map<string, Awaited<ReturnType<Locator["boundingBox"]>>>, attributes: Map<string, string | null>) {
   if (action.kind === "key") return page.keyboard.press(action.value === "+" ? "Shift+Equal" : action.value);
   if (action.kind === "filter") return page.locator("#browse-filter").fill(action.value);
   if (action.kind === "click") return page.locator(action.target).first().click({ clickCount: action.clicks ?? 1 });
   if (action.kind === "capture-box") { boxes.set(action.key, await page.locator(action.target).first().boundingBox()); return; }
+  if (action.kind === "capture-attribute") { attributes.set(action.key, await page.locator(action.target).first().getAttribute(action.attribute)); return; }
   if (action.kind === "seam-drag") {
     const seam = page.locator(`[data-seam="${action.name}"]`); const box = await seam.boundingBox(); if (!box) throw new Error(`missing ${action.name} seam`);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + action.dx, box.y + box.height / 2 + action.dy); await page.mouse.up(); return;
@@ -96,11 +97,11 @@ async function act(page: Page, action: FlowAction, boxes: Map<string, Awaited<Re
   return shape.click();
 }
 
-async function observe(page: Page, observable: Observable, boxes: Map<string, Awaited<ReturnType<Locator["boundingBox"]>>>) {
+async function observe(page: Page, observable: Observable, boxes: Map<string, Awaited<ReturnType<Locator["boundingBox"]>>>, attributes: Map<string, string | null>) {
   const locator = target(page, observable);
   if (observable.absent) return expect(locator).toHaveCount(0);
   if (observable.count !== undefined) return expect(locator).toHaveCount(observable.count);
-  await expect(locator).toBeVisible();
+  await expect(locator.first()).toBeVisible();
   if (observable.attribute && observable.equals !== undefined) await expect(locator).toHaveAttribute(observable.attribute, observable.equals);
   if (observable.attribute && observable.notEquals !== undefined) await expect(locator).not.toHaveAttribute(observable.attribute, observable.notEquals);
   if (observable.attribute && observable.contains !== undefined) await expect(locator).toHaveAttribute(observable.attribute, new RegExp(observable.contains));
@@ -108,6 +109,8 @@ async function observe(page: Page, observable: Observable, boxes: Map<string, Aw
   if (!observable.attribute && observable.contains !== undefined) await expect(locator).toContainText(observable.contains);
   if (observable.boxEquals) expect(await locator.first().boundingBox()).toEqual(boxes.get(observable.boxEquals));
   if (observable.boxNotEquals) expect(await locator.first().boundingBox()).not.toEqual(boxes.get(observable.boxNotEquals));
+  if (observable.attribute && observable.attributeEqualsCapture) expect(await locator.first().getAttribute(observable.attribute)).toBe(attributes.get(observable.attributeEqualsCapture));
+  if (observable.attribute && observable.attributeNotEqualsCapture) expect(await locator.first().getAttribute(observable.attribute)).not.toBe(attributes.get(observable.attributeNotEqualsCapture));
 }
 
 async function invariants(page: Page) {
@@ -123,11 +126,12 @@ async function invariants(page: Page) {
 for (const flow of flows.filter((item) => item.surfaces.includes("daemon"))) {
   test(`${flow.id}. ${flow.name}`, async ({ page }) => {
     const boxes = new Map<string, Awaited<ReturnType<Locator["boundingBox"]>>>();
+    const attributes = new Map<string, string | null>();
     if (flow.keyboardOnly) expect(flow.steps.every((step) => step.action.kind !== "click" && step.action.kind !== "strip-click")).toBe(true);
     for (const step of flow.steps) {
       expect(step.expect.length).toBeGreaterThan(0);
-      await act(page, step.action, boxes);
-      for (const observable of step.expect) await observe(page, observable, boxes);
+      await act(page, step.action, boxes, attributes);
+      for (const observable of step.expect) await observe(page, observable, boxes, attributes);
     }
     await invariants(page);
   });
