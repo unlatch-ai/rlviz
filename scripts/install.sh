@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-REPOSITORY="unlatch-ai/rlviz"
+REPOSITORY="TheSnakeFang/rlviz"
 VERSION="${RLVIZ_VERSION:-latest}"
 INSTALL_DIR="${RLVIZ_INSTALL_DIR:-$HOME/.local/bin}"
 

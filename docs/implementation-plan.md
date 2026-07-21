@@ -4,7 +4,7 @@ The implementation is organized as vertical milestones. Each milestone should le
 
 ## Current delivery
 
-Milestones 0–7 are implemented in the repository: versioned contracts and fixtures, the single-trajectory viewer, authenticated daemon lifecycle, progressive SQLite indexing, paginated and virtualized reads, growing-file updates, trusted external adapters and analyzers, rollout-group summaries, compact behavioral paths, deterministic long-trace comparison, cached loop/retry findings, release automation, and verified installers. `v0.1.0` is published with native macOS/Linux archives, checksums, attestations, a curl installer, the `unlatch-ai/tap/rlviz` Homebrew formula, and the `rlviz` npm package. npm trusted publishing is configured for future tags.
+Milestones 0–7 are implemented in the repository: versioned contracts and fixtures, the single-trajectory viewer, authenticated daemon lifecycle, progressive SQLite indexing, paginated and virtualized reads, growing-file updates, trusted external adapters and analyzers, rollout-group summaries, compact behavioral paths, deterministic long-trace comparison, cached loop/retry findings, release automation, and verified installers. `v0.1.0` is published with native macOS/Linux archives, checksums, attestations, a curl installer, the `TheSnakeFang/tap/rlviz` Homebrew formula, and the `rlviz` npm package. npm trusted publishing is configured for future tags.
 
 ## Milestone 0: contracts and fixtures
 

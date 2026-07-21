@@ -2,17 +2,37 @@
 
 ## Goal
 
-A research engineer should understand RLViz and open a real rollout without a
-consumer-style wizard. The happy path is operational and agent-friendly:
+A research engineer can open a real rollout directly, or run the optional
+terminal-only first-run wizard. The happy path remains operational and
+agent-friendly:
 
 ```text
-install -> demo -> open real source -> inspect or adapt -> view
+install -> optional init -> demo -> open real source -> inspect or adapt -> view
 ```
 
 Every human-readable command result should have a stable `--json` equivalent so
 Codex, Claude Code, Cursor, and other coding agents can operate the same flow.
 
 ## Command journey
+
+### 0. Optional first-run setup
+
+```bash
+rlviz init
+```
+
+The stdin/stdout wizard works over SSH. It asks for the default `rlviz open`
+interface (`browser`, `tui`, or `both`), then asks which Codex, Claude Code, or
+Cursor integrations to preview. Every selected file is printed in full and has
+its own write confirmation. Finally, the wizard offers to open the synthetic
+gallery. Codex and Claude Code use `~/.codex/skills/rlviz/SKILL.md` and
+`~/.claude/skills/rlviz/SKILL.md`; Cursor uses the current project's
+`.cursor/rules/rlviz.mdc`. Existing files are never replaced.
+
+`rlviz init --yes` and non-TTY stdin select the browser default, skip optional
+agent writes and gallery launch, print the agent prompt, and exit without
+waiting for input. A normal `rlviz open` with no config prints one hint and
+continues immediately.
 
 ### 1. Verify the installation
 
@@ -184,17 +204,15 @@ the adapter review and trust confirmation boundary.
 
 Package-manager postinstall scripts should not modify project instructions.
 
-## Browser welcome surface
+## Gallery
 
-An explicit future `rlviz welcome` may open a welcome surface with three
-concise actions:
+`rlviz demo` registers three generated, clearly synthetic canonical sources:
+a 300-event coding bugfix, a 120-event web research run, and a 16-rollout
+checkout cohort. The browser opens in Browse so the sources and cohort can be
+read and compared without falling back to embedded sample data.
 
-1. Open the demo
-2. Open a source from the CLI
-3. Add support for a private format
-
-Normal `rlviz open` goes directly to the requested data and never interrupts an
-expert with onboarding state.
+Normal `rlviz open` still goes directly to requested data and never blocks on
+onboarding state.
 
 ## Acceptance criteria
 

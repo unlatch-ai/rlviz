@@ -5,10 +5,10 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unlatch-ai/rlviz.git"
+    "url": "git+https://github.com/TheSnakeFang/rlviz.git"
   },
-  "homepage": "https://github.com/unlatch-ai/rlviz",
-  "bugs": "https://github.com/unlatch-ai/rlviz/issues",
+  "homepage": "https://github.com/TheSnakeFang/rlviz",
+  "bugs": "https://github.com/TheSnakeFang/rlviz/issues",
   "publishConfig": {
     "access": "public",
     "provenance": true

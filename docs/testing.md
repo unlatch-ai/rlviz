@@ -8,12 +8,31 @@ flows, strong protocol fixtures, and focused component/unit tests.
 
 ## Existing baseline
 
-`make check` verifies Go formatting and vetting, Go tests, React/Vitest tests,
+`make check` runs `make lint`, Go tests, React/Vitest tests,
 npm installer tests, the production web build, the curl installer, and Homebrew
 formula rendering. The embedded production bundle uses the cross-platform
 Terser minifier so committed assets are byte-reproducible on macOS and Linux.
 CI also runs the Go race detector, release-target builds, and a Playwright
 Chromium navigation flow at 1440 x 900.
+
+`make lint` runs the repository's `.golangci.yml` suite (`govet`,
+`staticcheck`, `errcheck`, `ineffassign`, `misspell`, and `gofmt`) when
+`golangci-lint` is installed. On a machine without that binary it falls back to
+`go vet ./...` plus a failing `gofmt -l` check, so a missing optional local tool
+does not make `make check` unusable. CI installs and runs the full suite.
+
+Useful focused targets are:
+
+```bash
+make lint       # Go static analysis and formatting
+make test       # Go, Vitest, npm installer, and shell installer tests
+make web-e2e    # deterministic Playwright flows against the built viewer
+make check      # full local release gate except Playwright
+```
+
+The web build begins with strict `tsc -b`. ESLint is not currently installed;
+add it in a follow-up dependency review rather than introducing an unreviewed
+network install solely for this release pass.
 
 ## Test layers
 

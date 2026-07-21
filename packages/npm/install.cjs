@@ -20,7 +20,7 @@ function releaseTarget(platform = process.platform, architecture = process.arch)
   return { os: targetOS, arch: targetArch };
 }
 
-function releaseURLs(version, target, base = "https://github.com/unlatch-ai/rlviz/releases/download") {
+function releaseURLs(version, target, base = "https://github.com/TheSnakeFang/rlviz/releases/download") {
   const normalized = version.replace(/^v/, "");
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(normalized)) {
     throw new Error(`invalid rlviz package version ${version}`);

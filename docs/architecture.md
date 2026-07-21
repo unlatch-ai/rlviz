@@ -56,8 +56,9 @@ operate the CLI and can author project-local adapters; RLViz remains the viewer.
 | `web/dist` | Generated production UI embedded by `web/embed.go` |
 | `schemas/v1alpha1` | Public canonical and plugin contracts |
 | `fixtures` | Canonical, malformed, adversarial, and protocol conformance data |
-| `examples` | Runnable adapters and public example traces |
+| `examples` | Runnable adapters and deterministic public gallery traces |
 | `integrations` | Codex, Claude Code, and Cursor project instructions |
+| `site` | Zero-dependency static docs source; generated output lives in `site/dist` |
 | `docs/adr` | Durable architectural decisions and their tradeoffs |
 
 ## Runtime paths
@@ -87,6 +88,11 @@ Presentation configuration is stored in a dedicated SQLite table keyed by
 source ID, without participating in the source fingerprint. Canonical source
 replacement therefore preserves presentation across refreshes and daemon
 restarts; explicit registration without a presentation deletes the prior row.
+
+`rlviz serve SOURCE` uses the same indexed read handler against an isolated
+temporary SQLite index. The temporary index is removed when the foreground
+server exits, while the source remains read-only. This keeps Browse and Read
+API behavior identical without adding foreground data to the per-user daemon.
 
 ### Read in the browser
 
