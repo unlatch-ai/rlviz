@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
-	"github.com/unlatch-ai/rlviz/internal/server"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/server"
 )
 
 type SourceIndexer struct {

@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+  settings:
+    staticcheck:
+      checks: ["all", "-QF1001", "-QF1003", "-QF1008", "-QF1012"]
+    errcheck:
+      # Terminal writes have no actionable error path in a CLI; everything
+      # else (Close, Remove, state mutations) must be checked or explicitly
+      # discarded at the call site.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+  exclusions:
+    rules:
+      # Deferred cleanup (Close/Remove on the way out) has no error path the
+      # caller can act on. Non-deferred calls remain fully checked.
+      - linters: [errcheck]
+        source: "^\\s*defer "
+
+formatters:
+  enable:
+    - gofmt

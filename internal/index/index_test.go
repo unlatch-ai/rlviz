@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func openTestIndex(t *testing.T) *Index {
@@ -482,7 +482,7 @@ func TestOpenMigratesPreProgressiveSourceState(t *testing.T) {
       complete_raw BLOB NOT NULL
     ); PRAGMA user_version=2;`)
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -526,7 +526,7 @@ func TestOpenMigratesLegacyEventsWithoutDataLoss(t *testing.T) {
     ); INSERT INTO events VALUES('legacy-source','legacy','trajectory-a',0,'state','','','','context:compaction','',?,'/trace.ndjson',3,5,7,9,11,13,?);
     PRAGMA user_version=4;`, legacyRaw, []byte(legacyRaw))
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

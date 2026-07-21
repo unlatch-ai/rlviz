@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func artifactHandler(t *testing.T, root string, artifact *model.Artifact) http.Handler {
@@ -198,7 +198,7 @@ func TestOpenVerifiedArtifactRejectsPathSwap(t *testing.T) {
 		t.Fatal(err)
 	}
 	if file, _, err := openVerifiedArtifact(second, expected); err == nil {
-		file.Close()
+		_ = file.Close()
 		t.Fatal("open accepted a file different from the pre-open stat")
 	}
 }

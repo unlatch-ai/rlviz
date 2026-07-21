@@ -1,11 +1,14 @@
-module github.com/unlatch-ai/rlviz
+module github.com/TheSnakeFang/rlviz
 
 go 1.25.0
 
 require (
+	github.com/charmbracelet/bubbletea v0.0.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	modernc.org/sqlite v1.46.1
 )
+
+replace github.com/charmbracelet/bubbletea => ./third_party/bubbletea
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

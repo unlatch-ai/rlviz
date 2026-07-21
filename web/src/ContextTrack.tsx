@@ -72,7 +72,7 @@ export function ContextTrack({ events, eventTotal, selectedId, onSelect }: {
     moveFocus(index, target);
   };
 
-  return <nav className="context-track" aria-label="Context events">
+  return <nav className="context-track" data-state={partial ? "partial" : undefined} aria-label="Context events">
     <div className="context-track-heading">
       <span>Context</span>
       <span className="context-track-fact">{selectedMarker ? contextFact(selectedMarker.context) : `${markers.length} ${markers.length === 1 ? "marker" : "markers"}`}</span>

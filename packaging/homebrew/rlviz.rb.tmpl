@@ -4,26 +4,26 @@
 # RLViz native CLI release.
 class Rlviz < Formula
   desc "Visualize and compare agent rollouts"
-  homepage "https://github.com/unlatch-ai/rlviz"
+  homepage "https://github.com/TheSnakeFang/rlviz"
   version "@VERSION@"
   license "Apache-2.0"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/unlatch-ai/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_darwin_arm64.tar.gz"
+      url "https://github.com/TheSnakeFang/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_darwin_arm64.tar.gz"
       sha256 "@DARWIN_ARM64@"
     else
-      url "https://github.com/unlatch-ai/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_darwin_x86_64.tar.gz"
+      url "https://github.com/TheSnakeFang/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_darwin_x86_64.tar.gz"
       sha256 "@DARWIN_AMD64@"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/unlatch-ai/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_linux_arm64.tar.gz"
+      url "https://github.com/TheSnakeFang/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_linux_arm64.tar.gz"
       sha256 "@LINUX_ARM64@"
     else
-      url "https://github.com/unlatch-ai/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_linux_x86_64.tar.gz"
+      url "https://github.com/TheSnakeFang/rlviz/releases/download/v@VERSION@/rlviz_@VERSION@_linux_x86_64.tar.gz"
       sha256 "@LINUX_AMD64@"
     end
   end

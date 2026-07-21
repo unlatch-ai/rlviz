@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RLViz concept — Compare (pass vs fail)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Stage-2 mockup: structure only, grayscale by design (interaction-contract §10). */
+  :root { --ink:#16181a; --dim:#6b7075; --faint:#a8adb2; --hair:#e3e5e7; --paper:#fafbfb; --card:#fff; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 14px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--paper); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  header { display: flex; align-items: baseline; gap: 24px; padding: 16px 32px 12px; border-bottom: 1px solid var(--hair); background: var(--card); }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header .meta { color: var(--dim); font-size: 12px; margin-top: 2px; }
+  .sides { margin-left: auto; display: flex; gap: 10px; font-size: 12px; }
+  .side { border: 1px solid var(--hair); padding: 5px 12px; background: var(--card); }
+  .side .who { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .side.ref { border-style: dashed; }
+  .side b { display: block; }
+
+  #shape { background: var(--card); border-bottom: 1px solid var(--hair); padding: 8px 32px 4px; }
+  #shape svg { display: block; width: 100%; height: 190px; }
+  .lane-label { font-size: 9px; fill: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+  .tick { fill: var(--faint); }
+  .tick.tool { fill: var(--dim); }
+  .tick.error { fill: var(--ink); }
+  .curve { fill: none; stroke: var(--ink); stroke-width: 1.3; }
+  .zeroline { stroke: var(--hair); stroke-width: 1; }
+  .prefix-shade { fill: #f0f1f2; }
+  .div-mark { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+  .playhead { stroke: var(--ink); stroke-width: 1.25; }
+  .anchor-tick { stroke: #d5d8da; stroke-width: 1; }
+  .annot { font-size: 10px; fill: var(--dim); }
+
+  main { flex: 1; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 14px 32px; }
+  .col { overflow: hidden; padding: 0 14px; }
+  .col + .col { border-left: 1px solid var(--hair); }
+  .col h2 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); padding-bottom: 8px; }
+  .col h2 .mono { text-transform: none; letter-spacing: 0; }
+  .evt { display: grid; grid-template-columns: 46px 74px 1fr; gap: 12px; padding: 6px 10px; align-items: baseline; color: var(--dim); font-size: 12.5px; }
+  .evt .addr { color: var(--faint); font-size: 11px; text-align: right; }
+  .evt .kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .evt.selected { background: var(--card); border: 1.5px solid var(--ink); color: var(--ink); padding: 10px; margin: 3px 0; }
+  .evt.changed b::after { content: " ≠"; color: var(--ink); }
+  .evt.missing { opacity: 0.4; font-style: italic; }
+  .evt .payload { background: #f4f5f6; border: 1px solid var(--hair); padding: 8px 10px; font-size: 11.5px; margin-top: 6px; white-space: pre-wrap; }
+
+  footer { border-top: 1px solid var(--hair); background: var(--card); padding: 8px 32px; display: flex; gap: 20px; font-size: 11px; color: var(--dim); }
+  footer kbd { font-family: ui-monospace, Menlo, monospace; font-size: 10px; border: 1px solid var(--hair); border-bottom-width: 2px; padding: 0 5px; border-radius: 3px; color: var(--ink); background: var(--card); }
+  footer .right { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Compare — case_184</h1>
+    <div class="meta">aligned on shared behavior anchors, not raw index · divergence curve = cumulative token cost vs reference</div>
+  </div>
+  <div class="sides">
+    <div class="side ref"><span class="who">reference · pass</span><b class="mono">traj-021 · reward 0.97</b></div>
+    <div class="side"><span class="who">subject · fail</span><b class="mono">traj-017 · reward 0.25</b></div>
+  </div>
+</header>
+
+<section id="shape"><svg id="strip" preserveAspectRatio="none"></svg></section>
+
+<main>
+  <div class="col" id="left"><h2>reference <span class="mono">traj-021</span></h2><div class="rows"></div></div>
+  <div class="col" id="right"><h2>subject <span class="mono">traj-017</span></h2><div class="rows"></div></div>
+</main>
+
+<footer>
+  <span><kbd>j</kbd><kbd>k</kbd> alignment steps</span>
+  <span><kbd>d</kbd> first meaningful divergence</span>
+  <span><kbd>n</kbd> next change</span>
+  <span><kbd>Shift+D</kbd> divergence curve</span>
+  <span><kbd>Enter</kbd> descend into subject</span>
+  <span><kbd>Esc</kbd> back to group</span>
+  <span class="right">selection <span class="mono" id="addr-out">—</span></span>
+</footer>
+
+<script>
+// ---------------------------------------------------------------------------
+// Aligned pair: 46 alignment steps. Steps 1–18 shared prefix (identical
+// behavior), step 19 = first meaningful divergence (subject skips
+// refresh_order), then the subject burns a retry loop the reference never
+// entered, realigning briefly at the grader. Deterministic.
+// ---------------------------------------------------------------------------
+const steps = [];
+const mk = (kind, title, opts = {}) => ({ kind, title, ...opts });
+for (let i = 0; i < 18; i++) {
+  const cyc = [mk("generation", "Assistant reasoning"), mk("tool", i < 8 ? "get_order" : "update_shipping_address"), mk("observation", "Tool result"), mk("message", "Progress note")][i % 4];
+  steps.push({ ref: cyc, sub: { ...cyc }, kind: "shared" });
+}
+steps.push({ ref: mk("tool", "refresh_order"), sub: mk("tool", "submit_order", { err: true }), kind: "divergence", note: "first meaningful divergence" });
+steps.push({ ref: mk("observation", "Fresh confirmation token"), sub: mk("error", "STALE_CONFIRMATION"), kind: "changed" });
+for (let i = 0; i < 16; i++) {
+  const sub = [mk("generation", "Retry with same token"), mk("tool", "submit_order", { err: i % 4 === 3 }), mk("observation", "ok:false STALE_CONFIRMATION"), mk("error", "Stale confirmation token")][i % 4];
+  steps.push({ ref: null, sub, kind: "sub-only" }); // reference never entered this loop
+}
+steps.push({ ref: mk("tool", "submit_order"), sub: null, kind: "ref-only" });
+steps.push({ ref: mk("observation", "ok:true · order submitted"), sub: null, kind: "ref-only" });
+for (let i = 0; i < 8; i++) steps.push({ ref: null, sub: mk(i % 2 ? "generation" : "message", "Recovery attempt drafting"), kind: "sub-only" });
+steps.push({ ref: mk("grader", "grader: pass 1.0"), sub: mk("grader", "grader: partial 0.25"), kind: "realigned", note: "realigned at grader" });
+const N = steps.length;
+const DIVERGENCE = steps.findIndex(s => s.kind === "divergence");
+
+// cumulative token delta (subject − reference) per alignment step
+let acc = 0;
+const delta = steps.map(s => {
+  acc += (s.sub ? (s.sub.kind === "generation" ? 420 : 180) : 0) - (s.ref ? (s.ref.kind === "generation" ? 400 : 180) : 0);
+  return acc;
+});
+
+// ---------------------------------------------------------------------------
+// Shared shape strip: reference texture above axis, subject mirrored below,
+// shared-prefix shading, divergence mark, divergence curve lane.
+// ---------------------------------------------------------------------------
+const svg = document.getElementById("strip");
+const W = 1200, H = 190;
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+const X = i => 14 + i / (N - 1) * (W - 28);
+let body = "";
+const AXIS = 74;
+body += `<rect class="prefix-shade" x="${X(0)}" y="18" width="${X(DIVERGENCE) - X(0)}" height="112"></rect>`;
+body += `<text class="annot" x="${X(0) + 4}" y="30">shared prefix</text>`;
+body += `<text class="lane-label" x="14" y="14">reference ↑ / subject ↓</text>`;
+steps.forEach((s, i) => {
+  const x = X(i);
+  body += `<line class="anchor-tick" x1="${x}" y1="${AXIS - 1.5}" x2="${x}" y2="${AXIS + 1.5}"></line>`;
+  if (s.ref) {
+    if (s.ref.err) body += `<path class="tick error" d="M${x-3},${AXIS-4} L${x},${AXIS-15} L${x+3},${AXIS-4} Z"></path>`;
+    else if (s.ref.kind === "tool") body += `<rect class="tick tool" x="${x-1.5}" y="${AXIS-18}" width="3" height="14"></rect>`;
+    else if (s.ref.kind === "grader") body += `<circle class="tick" cx="${x}" cy="${AXIS-11}" r="3"></circle>`;
+    else body += `<rect class="tick" x="${x-0.6}" y="${AXIS-12}" width="1.2" height="8"></rect>`;
+  }
+  if (s.sub) {
+    if (s.sub.err || s.sub.kind === "error") body += `<path class="tick error" d="M${x-3},${AXIS+4} L${x},${AXIS+15} L${x+3},${AXIS+4} Z"></path>`;
+    else if (s.sub.kind === "tool") body += `<rect class="tick tool" x="${x-1.5}" y="${AXIS+4}" width="3" height="14"></rect>`;
+    else if (s.sub.kind === "grader") body += `<circle class="tick" cx="${x}" cy="${AXIS+11}" r="3"></circle>`;
+    else body += `<rect class="tick" x="${x-0.6}" y="${AXIS+4}" width="1.2" height="8"></rect>`;
+  }
+});
+body += `<line class="div-mark" x1="${X(DIVERGENCE)}" y1="16" x2="${X(DIVERGENCE)}" y2="${H-8}"></line>`;
+body += `<text class="annot" x="${X(DIVERGENCE) + 5}" y="${H-46}">↳ first meaningful divergence · #${DIVERGENCE + 1}</text>`;
+
+// divergence curve lane
+const CV = [138, 182];
+body += `<text class="lane-label" x="14" y="${CV[0] - 4}">divergence curve — cumulative token cost vs reference</text>`;
+const dMin = Math.min(...delta, 0), dMax = Math.max(...delta, 1);
+const dy = v => CV[1] - ((v - dMin) / (dMax - dMin)) * (CV[1] - CV[0]);
+body += `<line class="zeroline" x1="${X(0)}" y1="${dy(0)}" x2="${X(N-1)}" y2="${dy(0)}"></line>`;
+let dPath = "";
+delta.forEach((v, i) => { dPath += `${i ? "L" : "M"}${X(i)},${dy(v)}`; });
+body += `<path class="curve" d="${dPath}"></path>`;
+body += `<line id="ph" class="playhead" y1="10" y2="${H-6}"></line>`;
+svg.innerHTML = body;
+
+// ---------------------------------------------------------------------------
+// One selection over alignment steps; both columns scroll in lockstep.
+// ---------------------------------------------------------------------------
+let sel = DIVERGENCE;
+const kindLabel = k => ({ generation: "gen", observation: "obs", message: "msg" })[k] ?? k;
+function col(hostId, side) {
+  const rows = [];
+  for (let i = Math.max(0, sel - 4); i <= Math.min(N - 1, sel + 4); i++) {
+    const e = steps[i][side], on = i === sel;
+    if (!e) { rows.push(`<div class="evt missing"><span class="addr mono">${i + 1}</span><span class="kind">—</span><span>no aligned activity</span></div>`); continue; }
+    const changed = !on && steps[i].kind !== "shared" && steps[i].ref && steps[i].sub;
+    rows.push(`<div class="evt${on ? " selected" : ""}${changed ? " changed" : ""}">
+      <span class="addr mono">${i + 1}</span><span class="kind">${kindLabel(e.kind)}</span>
+      <span><b>${e.title}</b>${on && steps[i].note ? `<div class="payload mono">${steps[i].note}
+ref:  ${steps[i].ref ? steps[i].ref.title : "—"}
+sub:  ${steps[i].sub ? steps[i].sub.title : "—"}</div>` : ""}</span>
+    </div>`);
+  }
+  document.querySelector(`#${hostId} .rows`).innerHTML = rows.join("");
+}
+function render() {
+  col("left", "ref"); col("right", "sub");
+  const x = X(sel);
+  document.getElementById("ph").setAttribute("x1", x);
+  document.getElementById("ph").setAttribute("x2", x);
+  document.getElementById("addr-out").textContent = `step ${sel + 1} / ${N} · Δtok ${delta[sel] >= 0 ? "+" : ""}${delta[sel]}`;
+}
+document.addEventListener("keydown", ev => {
+  if (ev.key === "j") sel = Math.min(N - 1, sel + 1);
+  else if (ev.key === "k") sel = Math.max(0, sel - 1);
+  else if (ev.key === "d") sel = DIVERGENCE;
+  else if (ev.key === "n") { for (let i = sel + 1; i < N; i++) if (steps[i].kind !== "shared") { sel = i; break; } }
+  else if (ev.key === "Enter") { window.location.href = "read-mode.html?traj=traj-017"; return; }
+  else if (ev.key === "Escape") { window.location.href = "triage.html"; return; }
+  else return;
+  render(); ev.preventDefault();
+});
+svg.addEventListener("click", ev => {
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const x = pt.matrixTransform(svg.getScreenCTM().inverse()).x;
+  sel = Math.max(0, Math.min(N - 1, Math.round((x - 14) / (W - 28) * (N - 1))));
+  render();
+});
+render();
+</script>
+</body>
+</html>

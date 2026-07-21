@@ -153,6 +153,11 @@ export const presentationThemeTokens = [
   "warning", "danger", "context_change",
 ] as const;
 export type PresentationThemeToken = typeof presentationThemeTokens[number];
+export const presentationPaletteTokens = [
+  "ctx", "failPolicy", "failInfra", "good", "page", "surface", "ink", "inkSecondary", "muted", "hairline",
+] as const;
+export type PresentationPaletteToken = typeof presentationPaletteTokens[number];
+export type PresentationPaletteVariant = Partial<Record<PresentationPaletteToken, string>>;
 export type PresentationFieldID = "reward" | "pass" | "status" | "termination" | "events" | "errors" | "tokens" | "latency" | `signal:${string}`;
 export type PresentationScalarFieldID = Exclude<PresentationFieldID, "pass" | "status" | "termination">;
 export type PresentationScalarKind = "number" | "integer" | "percent_fraction" | "duration_ms" | "bytes" | "scientific";
@@ -179,6 +184,8 @@ export interface PresentationConfig {
   inspector?: { sections?: PresentationInspectorSectionID[] };
   keymap?: { bindings?: Record<string, string[]> };
   theme?: Partial<Record<PresentationThemeToken, string>>;
+  palette?: { name?: "high-contrast"; light?: PresentationPaletteVariant; dark?: PresentationPaletteVariant };
+  notices?: string[];
 }
 
 export interface PathFingerprint {
@@ -242,6 +249,33 @@ export interface IndexedSource {
   path?: string;
   index_state?: "indexing" | "refreshing" | "complete" | "failed" | string;
   index_error?: string;
+}
+
+export interface BrowseTrajectory {
+  source_id: string;
+  source_name: string;
+  run_name?: string;
+  case_name?: string;
+  group_name?: string;
+  trajectory: Omit<Trajectory, "events">;
+  metrics: BrowseMetrics;
+}
+
+export interface BrowseMetrics extends GroupMetrics {
+  trajectory?: GroupTrajectorySummary["trajectory"];
+  metrics?: GroupMetrics;
+  normalized_metrics?: GroupMetrics;
+  signals?: Record<string, unknown>;
+  signal_count?: number;
+  artifact_count?: number;
+  status?: string;
+  termination?: string;
+}
+
+export interface BrowseResponse {
+  sources: IndexedSource[];
+  trajectories: BrowseTrajectory[];
+  count: number;
 }
 
 export interface PageMetadata {

@@ -11,8 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	fixturedata "github.com/unlatch-ai/rlviz/fixtures"
-	"github.com/unlatch-ai/rlviz/internal/daemon"
+	gallerydata "github.com/TheSnakeFang/rlviz/examples/gallery"
+	fixturedata "github.com/TheSnakeFang/rlviz/fixtures"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
 )
 
 const demoFilename = "demo-v1alpha1.ndjson"
@@ -34,11 +35,106 @@ func runDemo(arguments []string) {
 	if err != nil {
 		fatalError("demo", *jsonOutput, err)
 	}
-	path, err := ensureDemoSource(paths)
+	galleryPaths, err := ensureGallerySources(paths)
 	if err != nil {
 		fatalError("demo", *jsonOutput, err)
 	}
-	openSource(path, "", nil, *noOpen, *jsonOutput, "demo")
+	openGallery(galleryPaths, *noOpen, *jsonOutput)
+}
+
+func ensureGallerySources(paths daemon.Paths) ([]string, error) {
+	directory := filepath.Join(paths.RuntimeDir, "gallery")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return nil, fmt.Errorf("create gallery directory: %w", err)
+	}
+	result := make([]string, 0, len(gallerydata.Names))
+	for _, name := range gallerydata.Names {
+		content, err := gallerydata.Files.ReadFile(name)
+		if err != nil {
+			return nil, fmt.Errorf("read embedded gallery %s: %w", name, err)
+		}
+		path := filepath.Join(directory, name)
+		current, readErr := os.ReadFile(path)
+		if readErr == nil && bytes.Equal(current, content) {
+			if err := os.Chmod(path, 0o600); err != nil {
+				return nil, err
+			}
+			result = append(result, path)
+			continue
+		}
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return nil, fmt.Errorf("read gallery source %s: %w", name, readErr)
+		}
+		temporary, err := os.CreateTemp(directory, ".gallery-*.ndjson")
+		if err != nil {
+			return nil, err
+		}
+		temporaryName := temporary.Name()
+		if err := temporary.Chmod(0o600); err != nil {
+			_ = temporary.Close()
+			_ = os.Remove(temporaryName)
+			return nil, err
+		}
+		if _, err := temporary.Write(content); err != nil {
+			_ = temporary.Close()
+			_ = os.Remove(temporaryName)
+			return nil, err
+		}
+		if err := temporary.Close(); err != nil {
+			_ = os.Remove(temporaryName)
+			return nil, err
+		}
+		if err := os.Rename(temporaryName, path); err != nil {
+			_ = os.Remove(temporaryName)
+			return nil, err
+		}
+		result = append(result, path)
+	}
+	return result, nil
+}
+
+func openGallery(paths []string, noOpen, jsonOutput bool) {
+	daemonPaths, err := daemon.DefaultPaths()
+	if err != nil {
+		fatalError("demo", jsonOutput, err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		fatalError("demo", jsonOutput, fmt.Errorf("locate rlviz executable: %w", err))
+	}
+	manager := daemon.Manager{Paths: daemonPaths, Executable: executable, Args: []string{"daemon", "serve", "--runtime-dir", daemonPaths.RuntimeDir}, Version: version}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	ensured, err := manager.Ensure(ctx)
+	if err != nil {
+		fatalError("demo", jsonOutput, err)
+	}
+	registeredPaths := make([]string, 0, len(paths))
+	sourceIDs := make([]string, 0, len(paths))
+	viewerURL := ""
+	for _, path := range paths {
+		registered, registerErr := (daemon.Client{}).Register(ctx, ensured.Metadata, daemon.RegisterRequest{Path: path})
+		if registerErr != nil {
+			fatalError("demo", jsonOutput, registerErr)
+		}
+		registeredPaths = append(registeredPaths, registered.Path)
+		sourceIDs = append(sourceIDs, registered.SourceID)
+		viewerURL, err = resolveViewerURL(ensured.Metadata, registered.URL)
+		if err != nil {
+			fatalError("demo", jsonOutput, err)
+		}
+	}
+	viewerURL, err = markDemoURL(viewerURL)
+	if err != nil {
+		fatalError("demo", jsonOutput, err)
+	}
+	output := openResult{URL: viewerURL, Path: registeredPaths[len(registeredPaths)-1], SourceID: sourceIDs[len(sourceIDs)-1], Paths: registeredPaths, SourceIDs: sourceIDs, Command: "demo", Mode: "daemon", Started: ensured.Started}
+	writeOutput(output, jsonOutput, fmt.Sprintf("Opened 3-source synthetic RLViz gallery at %s", viewerURL))
+	if !noOpen {
+		if err := openBrowser(viewerURL); err != nil {
+			fmt.Fprintf(os.Stderr, "open browser: %v\n", err)
+		}
+	}
 }
 
 func ensureDemoSource(paths daemon.Paths) (string, error) {
@@ -63,15 +159,15 @@ func ensureDemoSource(paths daemon.Paths) (string, error) {
 	name := temporary.Name()
 	defer os.Remove(name)
 	if err := temporary.Chmod(0o600); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return "", err
 	}
 	if _, err := temporary.Write(fixturedata.DemoNDJSON); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return "", err
 	}
 	if err := temporary.Sync(); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return "", err
 	}
 	if err := temporary.Close(); err != nil {

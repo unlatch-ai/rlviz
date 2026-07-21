@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/analyzers"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/analyzers"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 type AnalysisResult struct {
@@ -105,6 +105,9 @@ type SummaryPage struct {
 
 type TrajectorySummary struct {
 	Trajectory IndexedRecord[*model.Trajectory] `json:"trajectory"`
+	RunName    string                           `json:"-"`
+	CaseName   string                           `json:"-"`
+	GroupName  string                           `json:"-"`
 	// Signals preserves each canonical signal value as its original JSON. If a
 	// trajectory repeats a name, the later canonical record wins.
 	Signals       map[string]json.RawMessage `json:"signals,omitempty"`

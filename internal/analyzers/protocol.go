@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 var canonicalEventKinds = map[string]struct{}{

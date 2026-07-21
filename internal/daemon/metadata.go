@@ -98,15 +98,15 @@ func WriteMetadata(paths Paths, metadata Metadata) error {
 	temporaryName := temporary.Name()
 	defer os.Remove(temporaryName)
 	if err := temporary.Chmod(0o600); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return fmt.Errorf("secure temporary daemon metadata: %w", err)
 	}
 	if _, err := temporary.Write(payload); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return fmt.Errorf("write temporary daemon metadata: %w", err)
 	}
 	if err := temporary.Sync(); err != nil {
-		temporary.Close()
+		_ = temporary.Close()
 		return fmt.Errorf("sync temporary daemon metadata: %w", err)
 	}
 	if err := temporary.Close(); err != nil {

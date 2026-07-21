@@ -89,11 +89,17 @@ plain suffix text, not a formatting template. Scalar formatting applies only to
 numeric built-ins (`reward`, `events`, `errors`, `tokens`, and `latency`) and
 canonical signals; nonnumeric fields fail validation.
 
-Theme values are opaque six-digit hex colors for a fixed semantic-token
-allowlist. Runtime validation resolves partial overrides against the shipped
-dark theme and enforces minimum contrast for primary and secondary text, focus,
-and critical status colors. Primitive colors, typography, spacing, selectors,
-CSS functions, and URLs are not configurable.
+`palette` is the current bounded color contract. It accepts partial `light` and
+`dark` overrides for the ten tokens defined in `interaction-spec.md`, using
+three- or six-digit opaque hex colors, and resolves them against the built-in
+defaults. `palette.name: "high-contrast"` selects the shipped alternate palette
+before applying explicit overrides. An invalid color falls back to the default
+palette and produces a visible non-blocking viewer notice; unknown tokens and
+palette names remain validation errors. Typography, spacing, selectors, CSS
+functions, and URLs are not configurable.
+
+The older `theme` map remains schema-bounded for v1alpha1 compatibility. New
+configuration should use `palette` so browser and TUI semantics stay aligned.
 
 `inspector.sections` is an exact ordered list of one to ten core-owned section
 IDs: `properties`, `context`, `source`, `input`, `output`, `content`, `metadata`,
@@ -128,5 +134,5 @@ causing re-indexing. TypeScript mirrors the Go types;
 `GroupView` maps configured columns onto its existing built-in/signal model and
 uses the current user-saved column layout as a higher-priority preference.
 The command registry applies configured keymaps below browser-local overrides.
-Theme keys map to the same hyphenated CSS custom-property names only after
-validation. No presentation file is discovered from executable plugin output.
+Palette keys map to the fixed CSS custom properties only after validation. No
+presentation file is discovered from executable plugin output.

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { PresentationConfig } from "./types";
 
-export type CommandScope = "trajectory" | "group" | "paths" | "comparison";
+export type CommandScope = "trajectory" | "group" | "paths" | "comparison" | "overlay";
+type CommandRegistrationScope = CommandScope | "all";
 
 export const commandIds = {
   trajectory: {
@@ -10,6 +11,14 @@ export const commandIds = {
     nextArtifact: "trajectory.nextArtifact", toggleRaw: "trajectory.toggleRaw", openGroup: "trajectory.openGroup",
     toggleHelp: "trajectory.toggleHelp", toggleExpanded: "trajectory.toggleExpanded",
     openTranscript: "trajectory.openTranscript", openTimeline: "trajectory.openTimeline", openOutcome: "trajectory.openOutcome",
+    nextRollout: "trajectory.nextRollout", previousRollout: "trajectory.previousRollout", ascend: "trajectory.ascend",
+    markIn: "trajectory.markIn", markOut: "trajectory.markOut", goto: "trajectory.goto", replay: "trajectory.replay",
+    pivotAggregate: "trajectory.pivotAggregate", dropMarker: "trajectory.dropMarker", cycleMarkers: "trajectory.cycleMarkers",
+  },
+  view: {
+    fidelityUp: "view.fidelityUp", fidelityDown: "view.fidelityDown",
+    zoomIn: "view.zoomIn", zoomOut: "view.zoomOut", zoomFit: "view.zoomFit",
+    toggleHelp: "view.toggleHelp",
   },
   group: {
     back: "group.back", togglePaths: "group.togglePaths", search: "group.search", next: "group.next",
@@ -17,6 +26,8 @@ export const commandIds = {
     compare: "group.compare", best: "group.best", median: "group.median", worst: "group.worst",
     rewardOutlier: "group.rewardOutlier", nextFailure: "group.nextFailure", nextInfraFailure: "group.nextInfraFailure",
     toggleColumns: "group.toggleColumns",
+    tagVerdict1: "group.tagVerdict1", tagVerdict2: "group.tagVerdict2",
+    tagVerdict3: "group.tagVerdict3", tagVerdict4: "group.tagVerdict4",
   },
   paths: {
     back: "paths.back", togglePaths: "paths.togglePaths", next: "paths.next", previous: "paths.previous", open: "paths.open",
@@ -24,6 +35,7 @@ export const commandIds = {
   comparison: {
     back: "comparison.back", next: "comparison.next", previous: "comparison.previous",
     firstDivergence: "comparison.firstDivergence", nextChange: "comparison.nextChange",
+    toggleDivergenceCurve: "comparison.toggleDivergenceCurve",
   },
 } as const;
 
@@ -32,14 +44,14 @@ export type CommandId = NestedValue<typeof commandIds>;
 
 export type CommandDefinition = {
   id: CommandId;
-  scope: CommandScope;
+  scope: CommandRegistrationScope;
   label: string;
   defaultBindings: readonly string[];
   allowInInput?: boolean;
 };
 
 export const commands: readonly CommandDefinition[] = [
-  { id: commandIds.trajectory.dismiss, scope: "trajectory", label: "Close search or dialog", defaultBindings: ["Escape"], allowInInput: true },
+  { id: commandIds.trajectory.dismiss, scope: "overlay", label: "Close search or dialog", defaultBindings: ["Escape"], allowInInput: true },
   { id: commandIds.trajectory.search, scope: "trajectory", label: "Search events", defaultBindings: ["/"] },
   { id: commandIds.trajectory.next, scope: "trajectory", label: "Next event", defaultBindings: ["j"] },
   { id: commandIds.trajectory.previous, scope: "trajectory", label: "Previous event", defaultBindings: ["k"] },
@@ -50,11 +62,28 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.trajectory.nextArtifact, scope: "trajectory", label: "Open next artifact", defaultBindings: ["o"] },
   { id: commandIds.trajectory.toggleRaw, scope: "trajectory", label: "Toggle raw event record", defaultBindings: ["x"] },
   { id: commandIds.trajectory.openGroup, scope: "trajectory", label: "Compare trajectory group", defaultBindings: ["g"] },
-  { id: commandIds.trajectory.toggleHelp, scope: "trajectory", label: "Toggle keyboard shortcuts", defaultBindings: ["?"] },
+  { id: commandIds.trajectory.toggleHelp, scope: "overlay", label: "Toggle keyboard shortcuts", defaultBindings: ["?"] },
   { id: commandIds.trajectory.toggleExpanded, scope: "trajectory", label: "Expand selected event", defaultBindings: ["Enter", "Space"] },
   { id: commandIds.trajectory.openTranscript, scope: "trajectory", label: "Open transcript", defaultBindings: ["1"] },
   { id: commandIds.trajectory.openTimeline, scope: "trajectory", label: "Open event timeline", defaultBindings: ["2"] },
   { id: commandIds.trajectory.openOutcome, scope: "trajectory", label: "Open outcome", defaultBindings: ["3"] },
+  { id: commandIds.trajectory.nextRollout, scope: "trajectory", label: "Next rollout", defaultBindings: ["n"] },
+  { id: commandIds.trajectory.previousRollout, scope: "trajectory", label: "Previous rollout", defaultBindings: ["p"] },
+  { id: commandIds.trajectory.ascend, scope: "trajectory", label: "Ascend or return to Browse", defaultBindings: ["Escape"] },
+  { id: commandIds.trajectory.markIn, scope: "trajectory", label: "Set range start", defaultBindings: ["i"] },
+  { id: commandIds.trajectory.markOut, scope: "trajectory", label: "Set range end", defaultBindings: ["Shift+O"] },
+  { id: commandIds.trajectory.goto, scope: "trajectory", label: "Go to event address", defaultBindings: [":"] },
+  { id: commandIds.trajectory.replay, scope: "trajectory", label: "Toggle hindsight replay", defaultBindings: ["Shift+R"] },
+  { id: commandIds.trajectory.pivotAggregate, scope: "trajectory", label: "Pivot to aggregate", defaultBindings: ["."] },
+  { id: commandIds.trajectory.dropMarker, scope: "trajectory", label: "Drop marker", defaultBindings: ["m"] },
+  { id: commandIds.trajectory.cycleMarkers, scope: "trajectory", label: "Cycle markers", defaultBindings: ["Shift+M"] },
+
+  { id: commandIds.view.fidelityUp, scope: "all", label: "Increase fidelity", defaultBindings: ["]"] },
+  { id: commandIds.view.fidelityDown, scope: "all", label: "Decrease fidelity", defaultBindings: ["["] },
+  { id: commandIds.view.zoomIn, scope: "all", label: "Zoom in around selection", defaultBindings: ["+"] },
+  { id: commandIds.view.zoomOut, scope: "all", label: "Zoom out around selection", defaultBindings: ["-"] },
+  { id: commandIds.view.zoomFit, scope: "all", label: "Fit axis", defaultBindings: ["0"] },
+  { id: commandIds.view.toggleHelp, scope: "all", label: "Show active keyboard shortcuts", defaultBindings: ["?"] },
 
   { id: commandIds.group.back, scope: "group", label: "Back to trajectory", defaultBindings: ["Escape"], allowInInput: true },
   { id: commandIds.group.togglePaths, scope: "group", label: "Toggle behavioral paths", defaultBindings: ["p"] },
@@ -71,6 +100,10 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.group.nextFailure, scope: "group", label: "Jump to next failed trajectory", defaultBindings: ["f"] },
   { id: commandIds.group.nextInfraFailure, scope: "group", label: "Jump to next infrastructure failure", defaultBindings: ["i"] },
   { id: commandIds.group.toggleColumns, scope: "group", label: "Configure table columns", defaultBindings: ["Shift+C"] },
+  { id: commandIds.group.tagVerdict1, scope: "group", label: "Tag verdict accepted", defaultBindings: ["1"] },
+  { id: commandIds.group.tagVerdict2, scope: "group", label: "Tag verdict investigate", defaultBindings: ["2"] },
+  { id: commandIds.group.tagVerdict3, scope: "group", label: "Tag verdict policy failure", defaultBindings: ["3"] },
+  { id: commandIds.group.tagVerdict4, scope: "group", label: "Tag verdict infrastructure", defaultBindings: ["4"] },
 
   { id: commandIds.paths.back, scope: "paths", label: "Back to trajectory", defaultBindings: ["Escape"], allowInInput: true },
   { id: commandIds.paths.togglePaths, scope: "paths", label: "Back to trajectories", defaultBindings: ["p"] },
@@ -83,6 +116,7 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.comparison.previous, scope: "comparison", label: "Previous alignment step", defaultBindings: ["k", "ArrowUp"] },
   { id: commandIds.comparison.firstDivergence, scope: "comparison", label: "First meaningful divergence", defaultBindings: ["d"] },
   { id: commandIds.comparison.nextChange, scope: "comparison", label: "Next change", defaultBindings: ["n"] },
+  { id: commandIds.comparison.toggleDivergenceCurve, scope: "comparison", label: "Toggle divergence curve", defaultBindings: ["Shift+D"] },
 ] as const;
 
 const commandById = new Map<CommandId, CommandDefinition>(commands.map((command) => [command.id, command]));
@@ -98,6 +132,7 @@ function keyName(key: string): string {
 }
 
 export function normalizeBinding(binding: string): string {
+	if (binding.trim() === "+") return "+";
   const parts = binding.split("+").map((part) => part.trim()).filter(Boolean);
   const key = keyName(parts.pop() ?? "");
   const modifiers = new Set(parts.map((part) => part.toLowerCase()));
@@ -107,6 +142,7 @@ export function normalizeBinding(binding: string): string {
 
 function validBinding(binding: string): boolean {
   if (!binding || binding.length > 32 || /[\u0000-\u001f\u007f]/.test(binding)) return false;
+	if (binding.trim() === "+") return true;
   const parts = binding.split("+").map((part) => part.trim());
   if (!parts.at(-1)) return false;
   const modifiers = parts.slice(0, -1).map((part) => part.toLowerCase());
@@ -175,10 +211,13 @@ function conflictBindings(binding: string): string[] {
 }
 export function detectKeymapConflicts(overrides: KeymapOverrides = loadKeymapOverrides(), scope?: CommandScope, configured = presentationKeymap): KeymapConflict[] {
   const seen = new Map<string, CommandId[]>();
-  commands.filter((command) => !scope || command.scope === scope).forEach((command) => {
+  commands.filter((command) => !scope || command.scope === scope || command.scope === "all").forEach((command) => {
     new Set(bindingsFor(command.id, overrides, configured).flatMap(conflictBindings)).forEach((binding) => {
-      const key = `${command.scope}\0${binding}`;
-      seen.set(key, [...(seen.get(key) ?? []), command.id]);
+      const scopes = command.scope === "all" ? (["trajectory", "group", "paths", "comparison"] as CommandScope[]) : [command.scope];
+      scopes.forEach((commandScope) => {
+        const key = `${commandScope}\0${binding}`;
+        seen.set(key, [...(seen.get(key) ?? []), command.id]);
+      });
     });
   });
   return [...seen].flatMap(([key, commandIds]) => commandIds.length > 1 ? [{ scope: key.split("\0")[0] as CommandScope, binding: key.split("\0")[1], commandIds }] : []);
@@ -221,7 +260,7 @@ export function useCommands(scope: CommandScope, handlers: CommandHandlers, enab
       const overrides = loadKeymapOverrides();
       for (const command of commands) {
         const handler = handlersRef.current[command.id];
-        if (command.scope !== scope || !handler || ((typing || inDialog) && !command.allowInInput)) continue;
+        if ((command.scope !== scope && command.scope !== "all") || !handler || ((typing || inDialog) && !command.allowInInput)) continue;
         if (!bindingsFor(command.id, overrides).some((candidate) => matchesBinding(event, candidate))) continue;
         if (handler(event) === false) continue;
         event.preventDefault();

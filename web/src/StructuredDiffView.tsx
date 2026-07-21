@@ -32,7 +32,7 @@ function DiffRows({ label, result }: { label: string; result: StructuredDiffResu
         <span role="cell" title={row.right.preview}>{row.right.preview}</span>
       </div>)}
     </div> : <p>No field changes</p>}
-    {result.truncated && <small>Bounded view · {result.truncationReasons.join(", ")}</small>}
+    {result.truncated && <small data-state="truncated">Bounded view · {result.truncationReasons.join(", ")}</small>}
   </section>;
 }
 

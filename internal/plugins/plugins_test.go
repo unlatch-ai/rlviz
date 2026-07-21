@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 const validManifest = `api_version: rlviz.dev/v1alpha1

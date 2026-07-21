@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
-	"github.com/unlatch-ai/rlviz/internal/presentation"
-	webassets "github.com/unlatch-ai/rlviz/web"
+	"github.com/TheSnakeFang/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/presentation"
+	webassets "github.com/TheSnakeFang/rlviz/web"
 )
 
 const fallbackUI = `<!doctype html>

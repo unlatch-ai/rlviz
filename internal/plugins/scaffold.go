@@ -39,7 +39,7 @@ func ScaffoldPython(destination string, options ScaffoldOptions) ([]string, erro
 	if err := rejectScaffoldSymlinks(abs); err != nil {
 		return nil, err
 	}
-	files := []scaffoldFile{}
+	var files []scaffoldFile
 	if kind == "analyzer" {
 		files = []scaffoldFile{
 			{ManifestName, strings.ReplaceAll(pythonAnalyzerManifest, "{{NAME}}", options.Name)},
@@ -124,7 +124,7 @@ func ScaffoldPython(destination string, options ScaffoldOptions) ([]string, erro
 		}
 		created = append(created, path)
 		if _, err := f.WriteString(file.contents); err != nil {
-			f.Close()
+			_ = f.Close()
 			rollback()
 			return nil, err
 		}

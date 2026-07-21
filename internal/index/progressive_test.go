@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func TestProgressiveFilePublishesBatchesWhileGrowing(t *testing.T) {
@@ -246,7 +246,7 @@ func writeProgressiveRecords(t *testing.T, path string, records []any, appendMod
 		t.Fatal(err)
 	}
 	if _, err := file.Write(data.Bytes()); err != nil {
-		file.Close()
+		_ = file.Close()
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/integrations"
+	"github.com/TheSnakeFang/rlviz/integrations"
 )
 
 const agentSetupSchemaVersion = "1"

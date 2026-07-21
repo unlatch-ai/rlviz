@@ -26,7 +26,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 case "$url" in
-  */releases/latest) printf '%s' 'https://github.com/unlatch-ai/rlviz/releases/tag/v1.2.3'; exit 0 ;;
+  */releases/latest) printf '%s' 'https://github.com/TheSnakeFang/rlviz/releases/tag/v1.2.3'; exit 0 ;;
 esac
 cp "$INSTALL_TEST_RELEASE/$(basename "$url")" "$output"
 EOF

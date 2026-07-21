@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/unlatch-ai/rlviz/internal/app"
-	"github.com/unlatch-ai/rlviz/internal/model"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
-	"github.com/unlatch-ai/rlviz/internal/plugins/sourceprofile"
+	"github.com/TheSnakeFang/rlviz/internal/app"
+	"github.com/TheSnakeFang/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/plugins/sourceprofile"
 )
 
 const (

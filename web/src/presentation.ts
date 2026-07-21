@@ -1,11 +1,18 @@
 import { optionalBuiltinColumns } from "./columnLayout";
 import type { GroupColumnLayout } from "./columnLayout";
-import { presentationInspectorSectionIDs, presentationThemeTokens } from "./types";
-import type { PresentationConfig, PresentationFieldID, PresentationInspectorSectionID, PresentationScalarFormat, PresentationThemeToken } from "./types";
+import { presentationInspectorSectionIDs, presentationPaletteTokens, presentationThemeTokens } from "./types";
+import type { PresentationConfig, PresentationFieldID, PresentationInspectorSectionID, PresentationPaletteToken, PresentationScalarFormat, PresentationThemeToken } from "./types";
 
 const themeProperties: Record<PresentationThemeToken, `--${string}`> = Object.fromEntries(
   presentationThemeTokens.map((token) => [token, `--${token.replaceAll("_", "-")}`]),
 ) as Record<PresentationThemeToken, `--${string}`>;
+
+const paletteProperties: Record<PresentationPaletteToken, `--${string}`> = {
+  ctx: "--ctx", failPolicy: "--fail-policy", failInfra: "--fail-infra", good: "--good",
+  page: "--page", surface: "--surface", ink: "--ink", inkSecondary: "--ink-secondary", muted: "--muted", hairline: "--hairline",
+};
+
+const paletteColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** Applies only the fixed semantic token allowlist and restores prior inline values on cleanup. */
 export function applyPresentationTheme(config: PresentationConfig | undefined, root: HTMLElement = document.documentElement): () => void {
@@ -17,7 +24,33 @@ export function applyPresentationTheme(config: PresentationConfig | undefined, r
     previous.set(property, root.style.getPropertyValue(property));
     root.style.setProperty(property, value);
   }
+
+  const palette = config?.palette;
+  const paletteIsValid = palette && [palette.light, palette.dark].every((variant) =>
+    !variant || Object.entries(variant).every(([token, value]) => presentationPaletteTokens.includes(token as PresentationPaletteToken) && paletteColor.test(value)),
+  );
+  if (paletteIsValid) {
+    for (const property of Object.values(paletteProperties)) previous.set(property, root.style.getPropertyValue(property));
+  }
+  const darkMedia = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : undefined;
+  const applyPalette = () => {
+    if (!paletteIsValid) return;
+    const explicitTheme = root.getAttribute("data-theme");
+    const variant = explicitTheme === "dark" || (explicitTheme !== "light" && darkMedia?.matches) ? palette.dark : palette.light;
+    for (const token of presentationPaletteTokens) {
+      const property = paletteProperties[token];
+      const value = variant?.[token];
+      if (value) root.style.setProperty(property, value);
+      else root.style.removeProperty(property);
+    }
+  };
+  applyPalette();
+  darkMedia?.addEventListener("change", applyPalette);
+  const observer = paletteIsValid && typeof MutationObserver !== "undefined" ? new MutationObserver(applyPalette) : undefined;
+  observer?.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   return () => {
+    observer?.disconnect();
+    darkMedia?.removeEventListener("change", applyPalette);
     for (const [property, value] of previous) {
       if (value) root.style.setProperty(property, value);
       else root.style.removeProperty(property);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadComparison, loadGroupPaths, loadTrajectory, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
+import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadBrowse, loadComparison, loadGroupPaths, loadIndexedTrajectory, loadTrajectory, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
 
-afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
+afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); window.localStorage.clear(); });
 
 describe("trajectory API normalization", () => {
 	it("uses the stable trajectory ID from the viewer URL", () => {
@@ -10,9 +10,47 @@ describe("trajectory API normalization", () => {
 		expect(trajectoryEndpoint("")).toBe("/api/v1/trajectory");
 	});
 
-	it("reads the daemon token from the URL fragment", () => {
+	it("persists a hash token and uses it for hash-less navigation", () => {
 		expect(daemonToken("#token=abc%2F123")).toBe("abc/123");
-		expect(daemonToken("")).toBeNull();
+		expect(window.localStorage.getItem("rlviz.daemon-token")).toBe("abc/123");
+		expect(daemonToken("")).toBe("abc/123");
+	});
+
+	it("clears a stale stored token and retries Browse exactly once", async () => {
+		window.localStorage.setItem("rlviz.daemon-token", "stale");
+		const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+			if (fetch.mock.calls.length === 1) return new Response(null, { status: 401 });
+			return new Response(JSON.stringify({ sources: [], trajectories: [], count: 0 }), { status: 200 });
+		});
+		vi.stubGlobal("fetch", fetch);
+		await expect(loadBrowse()).resolves.toEqual({ sources: [], trajectories: [], count: 0 });
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch.mock.calls[0][1]?.headers).toMatchObject({ Authorization: "Bearer stale" });
+		expect(fetch.mock.calls[1][1]?.headers).not.toHaveProperty("Authorization");
+		expect(window.localStorage.getItem("rlviz.daemon-token")).toBeNull();
+	});
+
+	it("clears stored tokens on auth-shaped trajectory failures", async () => {
+		localStorage.setItem("rlviz.daemon-token", "stale");
+		vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
+		await expect(loadTrajectory()).resolves.toMatchObject({ isSample: true });
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
+
+		localStorage.setItem("rlviz.daemon-token", "stale-again");
+		await expect(loadIndexedTrajectory("source", "trajectory")).rejects.toThrow("403");
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
+
+		localStorage.setItem("rlviz.daemon-token", "stale-browse");
+		await expect(loadBrowse()).rejects.toThrow("403");
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
+	});
+
+	it("surfaces an actionable error after the retry is also unauthorized", async () => {
+		window.localStorage.setItem("rlviz.daemon-token", "stale");
+		const fetch = vi.fn(async () => new Response(null, { status: 401 }));
+		vi.stubGlobal("fetch", fetch);
+		await expect(loadBrowse()).rejects.toThrow(/rlviz open/i);
+		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 
   it("merges sibling events and canonical event data", () => {
@@ -37,7 +75,7 @@ describe("trajectory API normalization", () => {
   });
 
   it("retains validated top-level presentation metadata", async () => {
-    const presentation = { api_version: "rlviz.dev/v1alpha1", fields: { reward: { label: "Return" } }, inspector: { sections: ["analysis", "properties"] }, theme: { focus: "#8be6d0" } };
+    const presentation = { api_version: "rlviz.dev/v1alpha1", fields: { reward: { label: "Return" } }, inspector: { sections: ["analysis", "properties"] }, theme: { focus: "#8be6d0" }, palette: { name: "high-contrast", light: { ctx: "#005fcc" }, dark: { ctx: "#66aaff" } }, notices: ["Palette fallback active."] };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       trajectory: { id: "presented" },
       events: [{ id: "evt", sequence: 0, kind: "message" }],

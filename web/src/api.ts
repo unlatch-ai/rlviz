@@ -1,5 +1,5 @@
 import { sampleTrajectory } from "./sample";
-import type { AnalysisResponse, ComparisonResponse, EventPageResponse, GroupPathsResponse, GroupResponse, IndexedSource, PageMetadata, PresentationConfig, Trajectory, TrajectoryArtifact, TrajectoryEvent, TrajectoryResponse, TrajectorySignal } from "./types";
+import type { AnalysisResponse, BrowseResponse, ComparisonResponse, EventPageResponse, GroupPathsResponse, GroupResponse, IndexedSource, PageMetadata, PresentationConfig, Trajectory, TrajectoryArtifact, TrajectoryEvent, TrajectoryResponse, TrajectorySignal } from "./types";
 
 export interface LoadResult { trajectory: Trajectory; isSample: boolean; page?: PageMetadata; signalPage?: PageMetadata; artifactPage?: PageMetadata; source?: IndexedSource; presentation?: PresentationConfig; error?: string }
 
@@ -14,8 +14,22 @@ export function trajectoryEndpoint(search = globalThis.location?.search ?? ""): 
   return `${indexed ? "/api/v1/indexed/trajectory" : "/api/v1/trajectory"}${query ? `?${query}` : ""}`;
 }
 
+const TOKEN_STORAGE_KEY = "rlviz.daemon-token";
+
 export function daemonToken(hash = globalThis.location?.hash ?? ""): string | null {
-  return new URLSearchParams(hash.replace(/^#/, "")).get("token");
+  const fromHash = new URLSearchParams(hash.replace(/^#/, "")).get("token");
+  // Persist per-origin so reloads and hash-less navigation keep working; the
+  // origin includes the daemon port. Ports can be recycled, so failed auth
+  // clears a token that may belong to an earlier daemon on the same origin.
+  if (fromHash) {
+    try { globalThis.localStorage?.setItem(TOKEN_STORAGE_KEY, fromHash); } catch { /* storage unavailable */ }
+    return fromHash;
+  }
+  try { return globalThis.localStorage?.getItem(TOKEN_STORAGE_KEY) ?? null; } catch { return null; }
+}
+
+export function clearStoredDaemonToken(): void {
+  try { globalThis.localStorage?.removeItem(TOKEN_STORAGE_KEY); } catch { /* storage unavailable */ }
 }
 
 function requestHeaders(): Record<string, string> {
@@ -23,6 +37,10 @@ function requestHeaders(): Record<string, string> {
   const token = daemonToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
+}
+
+function clearTokenOnAuthFailure(response: Response): void {
+  if (response.status === 401 || response.status === 403) clearStoredDaemonToken();
 }
 
 function normalizeEvent(event: TrajectoryEvent): TrajectoryEvent {
@@ -71,6 +89,7 @@ export function normalizeTrajectoryResponse(payload: TrajectoryResponse): Trajec
 export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> {
   try {
     const response = await fetch(trajectoryEndpoint(), { signal, headers: requestHeaders() });
+    clearTokenOnAuthFailure(response);
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
     const trajectory = normalizeTrajectoryResponse(payload);
@@ -80,6 +99,34 @@ export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> 
     if (signal?.aborted) throw error;
     return { trajectory: sampleTrajectory, isSample: true, error: error instanceof Error ? error.message : "API unavailable" };
   }
+}
+
+export async function loadBrowse(signal?: AbortSignal): Promise<BrowseResponse> {
+  let response = await fetch("/api/v1/indexed/browse", { signal, headers: requestHeaders() });
+  clearTokenOnAuthFailure(response);
+  if (response.status === 401) {
+    // A stored token can go stale when the daemon restarts; drop it and retry
+    // once with whatever the URL hash carries before reporting.
+    clearStoredDaemonToken();
+    response = await fetch("/api/v1/indexed/browse", { signal, headers: requestHeaders() });
+    clearTokenOnAuthFailure(response);
+  }
+  if (response.status === 401) throw new Error("Not authorized: this tab has no valid daemon token. Re-open the viewer with `rlviz open` or `rlviz demo` — the printed URL carries the token.");
+  if (!response.ok) throw new Error(`Browse API returned ${response.status}`);
+  const payload = (await response.json()) as BrowseResponse;
+  if (!Array.isArray(payload.sources) || !Array.isArray(payload.trajectories)) throw new Error("Browse API returned an invalid response");
+  return payload;
+}
+
+export async function loadIndexedTrajectory(sourceId: string, trajectoryId: string, signal?: AbortSignal): Promise<LoadResult> {
+  const params = new URLSearchParams({ trajectory: sourceId, trajectory_id: trajectoryId, limit: "200" });
+  const response = await fetch(`/api/v1/indexed/trajectory?${params}`, { signal, headers: requestHeaders() });
+  clearTokenOnAuthFailure(response);
+  if (!response.ok) throw new Error(`Trajectory API returned ${response.status}`);
+  const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
+  const trajectory = normalizeTrajectoryResponse(payload);
+  if (!trajectory.events.length) throw new Error("trajectory contains no events");
+  return { trajectory, isSample: false, page: payload.page, signalPage: payload.signal_page, artifactPage: payload.artifact_page, source: payload.source, presentation: payload.presentation };
 }
 
 export async function loadChildPage(kind: "signals", sourceId: string, trajectoryId: string, offset: number, signal?: AbortSignal): Promise<{ items: TrajectorySignal[]; page: PageMetadata }>;

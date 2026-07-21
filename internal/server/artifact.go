@@ -121,11 +121,11 @@ func openVerifiedArtifact(path string, expected os.FileInfo) (*os.File, os.FileI
 	}
 	actual, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, nil, err
 	}
 	if expected == nil || !os.SameFile(expected, actual) {
-		file.Close()
+		_ = file.Close()
 		return nil, nil, errors.New("artifact changed while opening")
 	}
 	return file, actual, nil

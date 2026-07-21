@@ -31,14 +31,14 @@ describe("keymap settings", () => {
   it("keeps edits as drafts until a per-command save", () => {
     render(<KeymapDialog open onClose={() => {}} />);
     const input = screen.getByLabelText("Next event bindings");
-    fireEvent.change(input, { target: { value: "n, ArrowDown" } });
+    fireEvent.change(input, { target: { value: "l, ArrowDown" } });
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Save Next event bindings" })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Save Next event bindings" }));
     expect(storage.setItem).toHaveBeenCalledOnce();
-    expect(JSON.parse(values.get(keymapStorageKey)!)[commandIds.trajectory.next]).toEqual(["n", "ArrowDown"]);
-    expect(input).toHaveValue("n, ArrowDown");
+    expect(JSON.parse(values.get(keymapStorageKey)!)[commandIds.trajectory.next]).toEqual(["l", "ArrowDown"]);
+    expect(input).toHaveValue("l, ArrowDown");
   });
 
   it("reports same-scope conflicts inline and blocks the conflicting save", () => {

@@ -4,6 +4,8 @@ Visualize and compare agent rollouts.
 
 RLViz is a local, open-source viewer for agent trajectories. Point it at a trace, open the viewer, and inspect what the model, tools, grader, and environment did step by step.
 
+Full documentation lives at [rlviz.dev](https://rlviz.dev).
+
 The long-term goal is a lightweight workbench for people building agent environments and post-training systems:
 
 - open one trajectory without importing it into a hosted platform
@@ -12,6 +14,27 @@ The long-term goal is a lightweight workbench for people building agent environm
 - find the first meaningful behavioral divergence
 - extend support for private formats with local adapter plugins
 - invoke the viewer directly or through coding agents such as Claude Code, Codex, and Cursor
+
+## Quickstart
+
+Install the native binary, choose your default interface, open the synthetic
+gallery, then inspect a real trace in the TUI:
+
+```bash
+brew install TheSnakeFang/tap/rlviz
+rlviz init
+rlviz demo
+rlviz open --tui ./path/to/trajectory.ndjson
+```
+
+The gallery is deterministic synthetic data: a 300-event coding-agent bugfix
+with a retry comb and compaction, a 120-event research run, and a 16-rollout
+checkout cohort containing pass, policy-failure, and infrastructure-failure
+outcomes. It opens in Browse so attention ordering, fidelity, verdict tagging,
+Read, and Compare can be exercised without using private traces.
+
+Canonical NDJSON works directly. For a private or unsupported format, start
+with the [adapter authoring guide](https://rlviz.dev/adapter-authoring.html).
 
 ## Status
 
@@ -25,6 +48,7 @@ Open the bundled synthetic research demo or inspect available built-in and
 trusted plugin formats:
 
 ```bash
+rlviz init
 rlviz demo
 rlviz formats
 rlviz inspect ./path/to/rollout.ndjson
@@ -32,9 +56,10 @@ rlviz setup agent codex --print
 rlviz plugin init --type adapter --from ./private.trace .rlviz/plugins/private-format
 ```
 
-The setup command prints version-matched instructions for Codex, Claude Code,
-or Cursor without modifying the current project. Add `--json` for structured
-output an agent can consume.
+`rlviz init` stores a browser/TUI default and can install reviewed agent skills
+into their standard locations. The lower-level setup command prints
+version-matched instructions for Codex, Claude Code, or Cursor without modifying
+the current project. Add `--json` for structured output an agent can consume.
 
 Build it and open a canonical fixture:
 
@@ -60,7 +85,7 @@ order or hide fixed inspector sections, but cannot replace the selected-event
 header or raw normalized record. It can also provide portable defaults for
 stable core command bindings; local browser edits remain higher priority.
 
-`rlviz open` starts or reuses a private loopback daemon and returns after registration. Use `rlviz status` and `rlviz stop` to inspect or stop it; `rlviz serve` remains the explicit foreground debugging mode.
+`rlviz open` starts or reuses a private loopback daemon and returns after registration. Its default surface comes from `rlviz init`; explicit `--tui`, `--no-open`, and `--json` flags still win. Use `rlviz status` and `rlviz stop` to inspect or stop it. `rlviz serve` remains the explicit foreground debugging mode and uses a temporary local index with the same Browse and trajectory API as daemon mode.
 
 The daemon incrementally decodes sources into a private SQLite cache, watches opened files for changes, and serves paginated events to a virtualized UI. Group sources add a sortable trajectory table, aggregate outcomes, compact behavioral paths, and deterministic two-run divergence comparison.
 
@@ -94,7 +119,7 @@ See [`docs/adapter-authoring.md`](docs/adapter-authoring.md) and the working
 Release archives contain one native binary and require no language runtime. Install the latest verified archive with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/unlatch-ai/rlviz/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/TheSnakeFang/rlviz/main/scripts/install.sh | sh
 ```
 
 Set `RLVIZ_VERSION` to pin a release and `RLVIZ_INSTALL_DIR` to choose the destination. The installer verifies the release checksum before installing `rlviz`.
@@ -102,7 +127,7 @@ Set `RLVIZ_VERSION` to pin a release and `RLVIZ_INSTALL_DIR` to choose the desti
 On macOS or Linux with Homebrew:
 
 ```bash
-brew install unlatch-ai/tap/rlviz
+brew install TheSnakeFang/tap/rlviz
 ```
 
 For Node-based environments and coding-agent sandboxes, the same native binary is available through npm:
@@ -125,9 +150,11 @@ rlviz setup agent codex --write --destination .agents/rlviz.md
 ```
 
 Writes are opt-in and create-only: RLViz never overwrites or silently edits a
-project's existing agent instructions. These snippets teach an agent how to
-open traces and build adapters; they are not executable plugins or globally
-installed skills.
+project's existing agent instructions. The first-run wizard can install the
+same reviewed content as a Codex or Claude Code skill, or as a Cursor rule,
+after showing the exact destination and content and receiving confirmation.
+These files teach an agent how to open traces and build adapters; they are not
+executable plugins.
 
 ## Design principles
 

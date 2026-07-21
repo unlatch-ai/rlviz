@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/daemon"
-	"github.com/unlatch-ai/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
 )
 
 const doctorSchemaVersion = 1

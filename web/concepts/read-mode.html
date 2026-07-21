@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RLViz concept — Read mode t=0</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Stage-2 mockup: structure and hierarchy only. Grayscale by design —
+     the semantic color budget is a stage-4 decision (interaction-contract §10). */
+  :root {
+    --ink: #16181a; --dim: #6b7075; --faint: #a8adb2; --hair: #e3e5e7;
+    --paper: #fafbfb; --card: #ffffff; --select: #16181a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font: 14px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+    color: var(--ink); background: var(--paper);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* ---- 1. Verdict header ---- */
+  header {
+    display: flex; align-items: baseline; gap: 28px;
+    padding: 18px 32px 14px; border-bottom: 1px solid var(--hair); background: var(--card);
+  }
+  .task h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .task .meta { color: var(--dim); font-size: 12px; margin-top: 2px; }
+  .judges { display: flex; gap: 10px; margin-left: auto; align-items: center; }
+  .judge {
+    border: 1px solid var(--hair); padding: 6px 12px; background: var(--card);
+    font-size: 12px; cursor: pointer; text-align: left;
+  }
+  .judge b { display: block; font-size: 13px; margin-top: 1px; }
+  .judge.fail { border-color: var(--ink); border-width: 1.5px; }
+  .judge .who { color: var(--dim); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
+  .disagree {
+    font-size: 11px; color: var(--ink); border-bottom: 1px dashed var(--dim);
+    cursor: help; align-self: center;
+  }
+  .term { color: var(--dim); font-size: 12px; }
+
+  /* ---- 2. Shape strip (dominant object) ---- */
+  #shape { background: var(--card); border-bottom: 1px solid var(--hair); padding: 10px 32px 6px; }
+  #shape svg { display: block; width: 100%; height: 208px; }
+  .lane-label { font-size: 9px; fill: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+  .ep-band { fill: #f1f2f3; stroke: var(--hair); }
+  .ep-band.active { fill: #e6e8ea; }
+  .ep-name { font-size: 10px; fill: var(--dim); }
+  .tick { fill: var(--faint); }
+  .tick.tool { fill: var(--dim); }
+  .tick.error { fill: var(--ink); }
+  .tick.landmark { fill: var(--ink); }
+  .curve { fill: none; stroke: var(--dim); stroke-width: 1.2; }
+  .ctx-area { fill: #eceeef; stroke: var(--faint); stroke-width: 1; }
+  .playhead { stroke: var(--ink); stroke-width: 1.25; }
+  .playhead-cap { fill: var(--ink); }
+  .skimmer { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 3; }
+  .mark { fill: none; stroke: var(--ink); stroke-width: 1.1; }
+
+  /* ---- 3. Detail region (Events layer) ---- */
+  main { flex: 1; overflow: hidden; display: flex; justify-content: center; }
+  #stream { width: min(880px, 92%); overflow: hidden; padding: 18px 0; display: flex; flex-direction: column; }
+  .evt {
+    display: grid; grid-template-columns: 64px 92px 1fr auto; gap: 14px;
+    padding: 7px 14px; align-items: baseline; color: var(--dim); font-size: 13px;
+  }
+  .evt .addr { color: var(--faint); font-size: 11px; text-align: right; }
+  .evt .kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .evt.selected {
+    background: var(--card); border: 1.5px solid var(--select); color: var(--ink);
+    padding: 12px 14px; margin: 4px 0;
+  }
+  .evt.selected .body { margin-top: 8px; }
+  .evt .payload {
+    background: #f4f5f6; border: 1px solid var(--hair); padding: 10px 12px;
+    font-size: 12px; margin-top: 8px; white-space: pre-wrap; overflow-x: auto;
+  }
+  .evt .prov { color: var(--faint); font-size: 11px; margin-top: 8px; }
+  .evt .prov .origin { border: 1px solid var(--hair); padding: 1px 5px; margin-left: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ---- skim preview slot ---- */
+  #peek {
+    position: fixed; right: 32px; top: 96px; width: 300px; background: var(--card);
+    border: 1px solid var(--hair); box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 12px 14px; font-size: 12px; color: var(--dim); display: none; pointer-events: none;
+  }
+  #peek .t { color: var(--ink); font-weight: 600; }
+
+  /* ---- footer keys ---- */
+  footer {
+    border-top: 1px solid var(--hair); background: var(--card);
+    padding: 8px 32px; display: flex; gap: 22px; font-size: 11px; color: var(--dim);
+  }
+  footer kbd {
+    font-family: ui-monospace, Menlo, monospace; font-size: 10px; border: 1px solid var(--hair);
+    border-bottom-width: 2px; padding: 0 5px; border-radius: 3px; background: var(--card); color: var(--ink);
+  }
+  footer .depth { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="task">
+    <h1>Change delivery address for order #1842, then submit</h1>
+    <div class="meta mono">checkout_agent / case_184 · group grpo-184-02 · policy-checkpoint-1200 · seed 88421</div>
+  </div>
+  <div class="judges">
+    <span class="disagree" title="Judges disagree: reward is partial while the verifier failed. Click any judge for its evidence.">judges disagree</span>
+    <button class="judge fail"><span class="who">verifier</span><b>fail</b></button>
+    <button class="judge"><span class="who">reward</span><b>0.25 / 1.0</b></button>
+    <button class="judge fail"><span class="who">grader</span><b>partial</b></button>
+  </div>
+  <div class="term">ended: max submit retries</div>
+</header>
+
+<section id="shape" aria-label="Trajectory shape"><svg id="strip" preserveAspectRatio="none"></svg></section>
+
+<main><div id="stream"></div></main>
+<div id="peek"></div>
+
+<footer>
+  <span><kbd>j</kbd><kbd>k</kbd> events</span>
+  <span><kbd>e</kbd> next error</span>
+  <span><kbd>c</kbd> context change</span>
+  <span><kbd>a</kbd> finding</span>
+  <span><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd> zoom</span>
+  <span><kbd>Enter</kbd> descend</span>
+  <span><kbd>Esc</kbd> ascend</span>
+  <span><kbd>?</kbd> keys</span>
+  <span class="depth">depth: <b>events</b> · selection <span class="mono" id="addr-out">—</span></span>
+</footer>
+
+<script>
+// ---------------------------------------------------------------------------
+// Synthetic rollout: the sample.ts checkout scenario, extended to 164 events
+// so the Surface has real texture: a retry comb, a context ramp, a compaction
+// cliff, and a divergent recovery attempt. Deterministic — no Math.random.
+// ---------------------------------------------------------------------------
+const EPISODES = [
+  { name: "setup",           n: 10 },
+  { name: "inspect order",   n: 34 },
+  { name: "address update",  n: 18 },
+  { name: "submit retries",  n: 40 },  // the comb
+  { name: "compaction",      n: 4  },  // the cliff
+  { name: "recovery",        n: 46 },
+  { name: "graded",          n: 12 },
+];
+const events = [];
+let seq = 0, ctx = 3200, reward = 0;
+function push(kind, title, extra = {}) {
+  seq += 1;
+  ctx += extra.ctxDelta ?? (kind === "generation" ? 420 : kind === "observation" ? 610 : 140);
+  if (extra.ctxSet !== undefined) ctx = extra.ctxSet;
+  reward += extra.reward ?? 0;
+  events.push({ seq, kind, title, ctx, reward, ...extra });
+}
+EPISODES.forEach((ep, ei) => {
+  for (let i = 0; i < ep.n; i++) {
+    const phase = i % 4;
+    if (ei === 3) { // submit retries: tool → error, repeated — the comb
+      if (i % 5 === 4) push("error", "STALE_CONFIRMATION rejected token", { landmark: "error" });
+      else if (phase === 0) push("generation", "Retry submit with same token");
+      else if (phase === 1) push("tool", "submit_order");
+      else if (phase === 2) push("observation", "ok:false STALE_CONFIRMATION");
+      else push("error", "Stale confirmation token", { landmark: "error" });
+    } else if (ei === 4) { // compaction cliff
+      if (i === 1) push("state", "Context compaction: 41→9 messages", { landmark: "context", ctxSet: 9400 });
+      else push("log", "compaction bookkeeping", { ctxDelta: 40 });
+    } else if (ei === 6) { // graded
+      if (i === 6) push("grader", "Task completion grader: partial", { landmark: "finding", reward: -0.25 });
+      else if (i === 9) push("error", "Verifier: order not submitted", { landmark: "error" });
+      else push(phase === 0 ? "generation" : "message", "Final answer drafting");
+    } else {
+      if (phase === 0) push("generation", "Assistant reasoning");
+      else if (phase === 1) push("tool", ei === 2 ? "update_shipping_address" : "get_order");
+      else if (phase === 2) push("observation", "Tool result");
+      else push("message", "Progress note");
+      if (ei === 2 && i === 12) push("reward", "Address component +0.5", { landmark: "finding", reward: 0.5 });
+    }
+  }
+});
+const N = events.length;
+const FIRST_ANOMALY = events.findIndex(e => e.kind === "error"); // pre-placed selection
+
+// ---------------------------------------------------------------------------
+// Shape strip: episode bands / event texture / context lane / health curve.
+// One shared x-axis; playhead crosses every lane.
+// ---------------------------------------------------------------------------
+const svg = document.getElementById("strip");
+const W = 1200, H = 208;
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+// axis zoom: the strip renders the window [view.a, view.b] in seq space.
+const view = { a: 1, b: N };
+const X = s => 14 + (s - view.a) / (view.b - view.a) * (W - 28);
+const seqAt = x => Math.max(1, Math.min(N, Math.round(view.a + (x - 14) / (W - 28) * (view.b - view.a))));
+const LANES = { ep: [16, 34], tex: [58, 96], ctx: [122, 152], health: [166, 196] };
+const label = (y, t) => `<text class="lane-label" x="14" y="${y - 5}">${t}</text>`;
+
+function buildStrip() {
+  let svgBody = "";
+  const inView = e => e.seq >= view.a - 0.5 && e.seq <= view.b + 0.5;
+
+  // episode bands, widths proportional to extent, clipped to the window
+  svgBody += label(LANES.ep[0], "episodes");
+  let cursor = 1;
+  EPISODES.forEach(ep => {
+    const s0 = cursor, s1 = cursor + ep.n - 1;
+    cursor += ep.n;
+    if (s1 < view.a || s0 > view.b) return;
+    const x0 = X(Math.max(s0, view.a)), x1 = X(Math.min(s1, view.b));
+    svgBody += `<rect class="ep-band" data-ep="${ep.name}" x="${x0}" y="${LANES.ep[0]}" width="${x1 - x0}" height="${LANES.ep[1] - LANES.ep[0]}"></rect>`;
+    if (x1 - x0 > 52) svgBody += `<text class="ep-name" x="${x0 + 5}" y="${LANES.ep[0] + 13}">${ep.name}</text>`;
+  });
+
+  // event texture: shape encodes kind (no hue) — line=prose, square=tool, triangle=error
+  svgBody += label(LANES.tex[0], "events");
+  events.filter(inView).forEach(e => {
+    const x = X(e.seq), [y0, y1] = LANES.tex;
+    if (e.kind === "error") svgBody += `<path class="tick error" d="M${x - 3.4},${y1} L${x},${y1 - 11} L${x + 3.4},${y1} Z"></path>`;
+    else if (e.kind === "tool") svgBody += `<rect class="tick tool" x="${x - 1.6}" y="${y1 - 16}" width="3.2" height="16"></rect>`;
+    else if (e.kind === "grader" || e.kind === "reward") svgBody += `<circle class="tick landmark" cx="${x}" cy="${y1 - 18}" r="3"></circle>`;
+    else if (e.kind === "state") svgBody += `<rect class="tick landmark" x="${x - 1}" y="${y0}" width="2" height="${y1 - y0}"></rect>`;
+    else svgBody += `<rect class="tick" x="${x - 0.6}" y="${y1 - 9}" width="1.2" height="9"></rect>`;
+  });
+
+  // context pressure: area, ramp then cliff at compaction
+  svgBody += label(LANES.ctx[0], "context");
+  const maxCtx = Math.max(...events.map(e => e.ctx));
+  const vis = events.filter(inView);
+  let ctxPath = `M${X(vis[0].seq)},${LANES.ctx[1]}`;
+  vis.forEach(e => { ctxPath += ` L${X(e.seq)},${LANES.ctx[1] - (e.ctx / maxCtx) * (LANES.ctx[1] - LANES.ctx[0])}`; });
+  ctxPath += ` L${X(vis[vis.length - 1].seq)},${LANES.ctx[1]} Z`;
+  svgBody += `<path class="ctx-area" d="${ctxPath}"></path>`;
+
+  // health curve: cumulative reward
+  svgBody += label(LANES.health[0], "reward");
+  const rMin = Math.min(...events.map(e => e.reward)), rMax = Math.max(0.6, ...events.map(e => e.reward));
+  let rPath = "";
+  vis.forEach((e, i) => {
+    const y = LANES.health[1] - ((e.reward - rMin) / (rMax - rMin)) * (LANES.health[1] - LANES.health[0]);
+    rPath += `${i ? "L" : "M"}${X(e.seq)},${y}`;
+  });
+  svgBody += `<path class="curve" d="${rPath}"></path>`;
+
+  svgBody += `<line id="skim" class="skimmer" y1="10" y2="${H - 6}" x1="-10" x2="-10" visibility="hidden"></line>`;
+  svgBody += `<line id="ph" class="playhead" y1="10" y2="${H - 6}"></line><path id="phcap" class="playhead-cap"></path>`;
+  svg.innerHTML = svgBody;
+}
+buildStrip();
+
+// zoom around the selection: the anchor's fraction of the window is
+// preserved, so its screen x does not move (contract §4 anchor stability).
+function zoom(factor) {
+  const anchor = events[sel].seq;
+  const span = Math.max(8, Math.min(N - 1, (view.b - view.a) / factor));
+  const t = (anchor - view.a) / (view.b - view.a);
+  let a = anchor - t * span, b = a + span;
+  if (a < 1) { a = 1; b = 1 + span; }
+  if (b > N) { b = N; a = N - span; }
+  view.a = a; view.b = b;
+  buildStrip(); render();
+}
+function zoomFit() { view.a = 1; view.b = N; buildStrip(); render(); }
+// pan the window when deliberate navigation moves selection outside it
+function ensureVisible() {
+  const s = events[sel].seq, span = view.b - view.a;
+  if (s >= view.a && s <= view.b) return;
+  const m = span * 0.15;
+  if (s < view.a) { view.a = Math.max(1, s - m); view.b = view.a + span; }
+  else { view.b = Math.min(N, s + m); view.a = view.b - span; }
+  buildStrip();
+}
+
+// ---------------------------------------------------------------------------
+// Selection model: one selection; keyboard + strip clicks write it; hover is
+// a skimmer that previews without moving it. Selected event stays centered
+// (anchor stability).
+// ---------------------------------------------------------------------------
+let sel = FIRST_ANOMALY;
+const stream = document.getElementById("stream");
+const peek = document.getElementById("peek");
+const kindLabel = k => ({ generation: "gen", observation: "obs", message: "msg" })[k] ?? k;
+
+function payloadFor(e) {
+  if (e.kind === "error") return JSON.stringify({ code: "STALE_CONFIRMATION", retryable: true, expected_action: "refresh_order" }, null, 2);
+  if (e.kind === "tool") return JSON.stringify({ input: { order_id: "1842" }, output: { ok: e.title !== "submit_order", code: e.title === "submit_order" ? "STALE_CONFIRMATION" : undefined } }, null, 2);
+  if (e.kind === "grader") return JSON.stringify({ label: "partial", passed: false, components: { address_updated: 1, order_submitted: 0 } }, null, 2);
+  return "The address update succeeded. I can now submit the order directly.";
+}
+function render() {
+  const around = 5, rows = [];
+  for (let i = Math.max(0, sel - around); i <= Math.min(N - 1, sel + around); i++) {
+    const e = events[i], on = i === sel;
+    rows.push(`<div class="evt${on ? " selected" : ""}" data-i="${i}">
+      <span class="addr mono">${e.seq}</span>
+      <span class="kind">${kindLabel(e.kind)}</span>
+      <span class="body"><b>${e.title}</b>${on ? `<div class="payload mono">${payloadFor(e)}</div>
+        <div class="prov mono">artifacts/task-184.jsonl:${e.seq} · bytes 3188–3642<span class="origin">source</span></div>` : ""}</span>
+      <span class="addr">${on ? "" : ""}</span>
+    </div>`);
+  }
+  stream.innerHTML = rows.join("");
+  ensureVisible();
+  const e = events[sel], x = X(e.seq);
+  document.getElementById("ph").setAttribute("x1", x);
+  document.getElementById("ph").setAttribute("x2", x);
+  document.getElementById("phcap").setAttribute("d", `M${x - 4},6 L${x + 4},6 L${x},13 Z`);
+  const zoomed = view.a > 1 || view.b < N;
+  document.getElementById("addr-out").textContent = `#${e.seq} / ${N}` + (zoomed ? ` · view ${Math.round(view.a)}–${Math.round(view.b)}` : "");
+}
+function move(d) { sel = Math.max(0, Math.min(N - 1, sel + d)); render(); }
+function jump(pred, from = sel + 1) {
+  for (let i = from; i < N; i++) if (pred(events[i])) { sel = i; render(); return; }
+  for (let i = 0; i < from; i++) if (pred(events[i])) { sel = i; render(); return; }
+}
+document.addEventListener("keydown", ev => {
+  if (ev.key === "j") move(1);
+  else if (ev.key === "k") move(-1);
+  else if (ev.key === "e") jump(x => x.kind === "error");
+  else if (ev.key === "c") jump(x => x.landmark === "context");
+  else if (ev.key === "a") jump(x => x.landmark === "finding");
+  else if (ev.key === "+" || ev.key === "=") zoom(2);
+  else if (ev.key === "-") zoom(0.5);
+  else if (ev.key === "0") zoomFit();
+  else if (ev.key === "Escape") { window.location.href = "triage.html"; return; }
+  else if (ev.key === "g") { window.location.href = "triage.html"; return; }
+  else if (ev.key === "v") { window.location.href = "compare.html"; return; }
+  else return;
+  ev.preventDefault();
+});
+// judge chips jump to their evidence (contract §2: every verdict links to proof)
+document.querySelectorAll(".judge").forEach((chip, ci) => {
+  chip.onclick = () => { jump(x => ci === 1 ? x.kind === "reward" : x.kind === "grader" || (ci === 0 && x.kind === "error"), 0); };
+});
+svg.addEventListener("click", ev => {
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const x = pt.matrixTransform(svg.getScreenCTM().inverse()).x;
+  sel = seqAt(x) - 1;
+  render();
+});
+// skimmer: hover previews, never moves selection
+svg.addEventListener("mousemove", ev => {
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const x = pt.matrixTransform(svg.getScreenCTM().inverse()).x;
+  const i = seqAt(x) - 1;
+  const skim = document.getElementById("skim");
+  skim.setAttribute("x1", X(events[i].seq)); skim.setAttribute("x2", X(events[i].seq));
+  skim.removeAttribute("visibility");
+  peek.style.display = "block";
+  peek.innerHTML = `<span class="t">#${events[i].seq} · ${kindLabel(events[i].kind)}</span><br>${events[i].title}<br><span class="mono">ctx ${events[i].ctx.toLocaleString()} tok · reward ${events[i].reward.toFixed(2)}</span>`;
+});
+svg.addEventListener("mouseleave", () => {
+  document.getElementById("skim").setAttribute("visibility", "hidden");
+  peek.style.display = "none";
+});
+render();
+</script>
+</body>
+</html>

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func TestSourceIndexerReturnsInitialBatchAndSerializesDuplicates(t *testing.T) {
@@ -185,7 +185,7 @@ func appendAppCanonical(t *testing.T, path string, records []any) {
 	encoder := json.NewEncoder(file)
 	for _, record := range records {
 		if err := encoder.Encode(record); err != nil {
-			file.Close()
+			_ = file.Close()
 			t.Fatal(err)
 		}
 	}

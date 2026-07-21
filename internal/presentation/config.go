@@ -31,6 +31,17 @@ type Config struct {
 	Inspector  *InspectorDefaults      `json:"inspector,omitempty"`
 	Keymap     *KeymapDefaults         `json:"keymap,omitempty"`
 	Theme      map[string]string       `json:"theme,omitempty"`
+	Palette    *Palette                `json:"palette,omitempty"`
+	Notices    []string                `json:"notices,omitempty"`
+}
+
+// Palette is the bounded, mode-aware design token override contract. Load
+// resolves partial variants against either the default or named built-in
+// palette before the configuration crosses a process boundary.
+type Palette struct {
+	Name  string            `json:"name,omitempty"`
+	Light map[string]string `json:"light,omitempty"`
+	Dark  map[string]string `json:"dark,omitempty"`
 }
 
 type Field struct {
@@ -61,11 +72,15 @@ var commandIDs = map[string]bool{
 	"trajectory.nextError": true, "trajectory.nextReward": true, "trajectory.nextContext": true, "trajectory.nextFinding": true,
 	"trajectory.nextArtifact": true, "trajectory.toggleRaw": true, "trajectory.openGroup": true, "trajectory.toggleHelp": true,
 	"trajectory.toggleExpanded": true, "trajectory.openTranscript": true, "trajectory.openTimeline": true, "trajectory.openOutcome": true,
+	"trajectory.nextRollout": true, "trajectory.previousRollout": true, "trajectory.ascend": true, "trajectory.markIn": true, "trajectory.markOut": true,
+	"trajectory.goto": true, "trajectory.replay": true, "trajectory.pivotAggregate": true, "trajectory.dropMarker": true, "trajectory.cycleMarkers": true,
+	"view.fidelityUp": true, "view.fidelityDown": true, "view.zoomIn": true, "view.zoomOut": true, "view.zoomFit": true, "view.toggleHelp": true,
 	"group.back": true, "group.togglePaths": true, "group.search": true, "group.next": true, "group.previous": true,
 	"group.open": true, "group.toggleCompare": true, "group.compare": true, "group.best": true, "group.median": true,
 	"group.worst": true, "group.rewardOutlier": true, "group.nextFailure": true, "group.nextInfraFailure": true, "group.toggleColumns": true,
+	"group.tagVerdict1": true, "group.tagVerdict2": true, "group.tagVerdict3": true, "group.tagVerdict4": true,
 	"paths.back": true, "paths.togglePaths": true, "paths.next": true, "paths.previous": true, "paths.open": true,
-	"comparison.back": true, "comparison.next": true, "comparison.previous": true, "comparison.firstDivergence": true, "comparison.nextChange": true,
+	"comparison.back": true, "comparison.next": true, "comparison.previous": true, "comparison.firstDivergence": true, "comparison.nextChange": true, "comparison.toggleDivergenceCurve": true,
 }
 
 var commandDefaults = map[string][]string{
@@ -73,13 +88,17 @@ var commandDefaults = map[string][]string{
 	"trajectory.nextError": {"e"}, "trajectory.nextReward": {"r"}, "trajectory.nextContext": {"c"}, "trajectory.nextFinding": {"a"},
 	"trajectory.nextArtifact": {"o"}, "trajectory.toggleRaw": {"x"}, "trajectory.openGroup": {"g"}, "trajectory.toggleHelp": {"?"},
 	"trajectory.toggleExpanded": {"Enter", "Space"}, "trajectory.openTranscript": {"1"}, "trajectory.openTimeline": {"2"}, "trajectory.openOutcome": {"3"},
+	"trajectory.nextRollout": {"n"}, "trajectory.previousRollout": {"p"}, "trajectory.ascend": {"Escape"}, "trajectory.markIn": {"i"}, "trajectory.markOut": {"Shift+O"},
+	"trajectory.goto": {":"}, "trajectory.replay": {"Shift+R"}, "trajectory.pivotAggregate": {"."}, "trajectory.dropMarker": {"m"}, "trajectory.cycleMarkers": {"Shift+M"},
+	"view.fidelityUp": {"]"}, "view.fidelityDown": {"["}, "view.zoomIn": {"+"}, "view.zoomOut": {"-"}, "view.zoomFit": {"0"}, "view.toggleHelp": {"?"},
 	"group.back": {"Escape"}, "group.togglePaths": {"p"}, "group.search": {"/"}, "group.next": {"j", "ArrowDown"},
 	"group.previous": {"k", "ArrowUp"}, "group.open": {"Enter", "o"}, "group.toggleCompare": {"Space", "c"}, "group.compare": {"v"},
 	"group.best": {"b"}, "group.median": {"m"}, "group.worst": {"w"}, "group.rewardOutlier": {"u"}, "group.nextFailure": {"f"},
 	"group.nextInfraFailure": {"i"}, "group.toggleColumns": {"Shift+C"},
+	"group.tagVerdict1": {"1"}, "group.tagVerdict2": {"2"}, "group.tagVerdict3": {"3"}, "group.tagVerdict4": {"4"},
 	"paths.back": {"Escape"}, "paths.togglePaths": {"p"}, "paths.next": {"j", "ArrowDown"}, "paths.previous": {"k", "ArrowUp"}, "paths.open": {"Enter", "o"},
 	"comparison.back": {"Escape"}, "comparison.next": {"j", "ArrowDown"}, "comparison.previous": {"k", "ArrowUp"},
-	"comparison.firstDivergence": {"d"}, "comparison.nextChange": {"n"},
+	"comparison.firstDivergence": {"d"}, "comparison.nextChange": {"n"}, "comparison.toggleDivergenceCurve": {"Shift+D"},
 }
 
 var inspectorSectionIDs = map[string]bool{
@@ -92,6 +111,28 @@ var themeDefaults = map[string]string{
 	"border_subtle": "#22282f", "border_strong": "#303840", "text_primary": "#dce2ea", "text_secondary": "#a2adb9",
 	"text_muted": "#7f8b98", "text_faint": "#606b77", "focus": "#8be6d0", "selection": "#54d4b5",
 	"success": "#54d4b5", "info": "#78adff", "warning": "#e8b968", "danger": "#ff7580", "context_change": "#b49cff",
+}
+
+var paletteDefaults = map[string]map[string]string{
+	"light": {
+		"ctx": "#2a78d6", "failPolicy": "#d03b3b", "failInfra": "#ec835a", "good": "#006300",
+		"page": "#f9f9f7", "surface": "#fcfcfb", "ink": "#0b0b0b", "inkSecondary": "#52514e", "muted": "#898781", "hairline": "#e1e0d9",
+	},
+	"dark": {
+		"ctx": "#3987e5", "failPolicy": "#d03b3b", "failInfra": "#ec835a", "good": "#0ca30c",
+		"page": "#0d0d0d", "surface": "#1a1a19", "ink": "#ffffff", "inkSecondary": "#c3c2b7", "muted": "#898781", "hairline": "#2c2c2a",
+	},
+}
+
+var highContrastPalette = map[string]map[string]string{
+	"light": {
+		"ctx": "#005fcc", "failPolicy": "#b00020", "failInfra": "#b54708", "good": "#005a00",
+		"page": "#ffffff", "surface": "#ffffff", "ink": "#000000", "inkSecondary": "#333333", "muted": "#666666", "hairline": "#a0a0a0",
+	},
+	"dark": {
+		"ctx": "#66aaff", "failPolicy": "#ff5c5c", "failInfra": "#ff9a6c", "good": "#42d642",
+		"page": "#000000", "surface": "#101010", "ink": "#ffffff", "inkSecondary": "#dddddd", "muted": "#a0a0a0", "hairline": "#666666",
+	},
 }
 
 // Load reads one strict, bounded JSON presentation document. It never executes
@@ -116,6 +157,9 @@ func Load(reader io.Reader) (Config, error) {
 	} else if !errors.Is(err, io.EOF) {
 		return config, fmt.Errorf("invalid trailing JSON: %w", err)
 	}
+	if err := resolvePalette(&config); err != nil {
+		return config, err
+	}
 	if err := config.Validate(); err != nil {
 		return config, err
 	}
@@ -126,6 +170,9 @@ func Load(reader io.Reader) (Config, error) {
 // Callers use this at process boundaries so only the bounded contract, never
 // source file bytes or paths, crosses into the daemon and browser APIs.
 func Normalize(config Config) (json.RawMessage, error) {
+	if err := resolvePalette(&config); err != nil {
+		return nil, err
+	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -152,6 +199,14 @@ func NormalizeJSON(data json.RawMessage) (json.RawMessage, error) {
 func (config Config) Validate() error {
 	if config.APIVersion != APIVersion {
 		return fmt.Errorf("api_version must be %q", APIVersion)
+	}
+	if len(config.Notices) > 4 {
+		return errors.New("notices may contain at most four entries")
+	}
+	for _, notice := range config.Notices {
+		if notice == "" || len([]rune(notice)) > 240 || unsafeText(notice) {
+			return errors.New("notices must be non-empty, at most 240 characters, and contain no controls")
+		}
 	}
 	if len(config.Fields) > 64 || len(config.Scalars) > 64 {
 		return errors.New("fields and scalars may each contain at most 64 entries")
@@ -257,14 +312,15 @@ func (config Config) Validate() error {
 		sort.Strings(ids)
 		for _, id := range ids {
 			bindings := resolved[id]
-			scope := strings.SplitN(id, ".", 2)[0]
-			for _, binding := range bindings {
-				for _, collisionKey := range keyBindingCollisionKeys(binding) {
-					key := scope + "\x00" + collisionKey
-					if prior := occupied[key]; prior != "" && prior != id {
-						return fmt.Errorf("keymap binding %q conflicts between %q and %q", strings.TrimSpace(binding), prior, id)
+			for _, scope := range commandScopes(id) {
+				for _, binding := range bindings {
+					for _, collisionKey := range keyBindingCollisionKeys(binding) {
+						key := scope + "\x00" + collisionKey
+						if prior := occupied[key]; prior != "" && prior != id {
+							return fmt.Errorf("keymap binding %q conflicts between %q and %q", strings.TrimSpace(binding), prior, id)
+						}
+						occupied[key] = id
 					}
-					occupied[key] = id
 				}
 			}
 		}
@@ -272,7 +328,103 @@ func (config Config) Validate() error {
 	if err := validateTheme(config.Theme); err != nil {
 		return err
 	}
+	if err := validateResolvedPalette(config.Palette); err != nil {
+		return err
+	}
 	return nil
+}
+
+var paletteTokenNames = map[string]bool{
+	"ctx": true, "failPolicy": true, "failInfra": true, "good": true,
+	"page": true, "surface": true, "ink": true, "inkSecondary": true, "muted": true, "hairline": true,
+}
+
+func clonePalette(source map[string]map[string]string) *Palette {
+	result := &Palette{Light: map[string]string{}, Dark: map[string]string{}}
+	for key, value := range source["light"] {
+		result.Light[key] = value
+	}
+	for key, value := range source["dark"] {
+		result.Dark[key] = value
+	}
+	return result
+}
+
+func resolvePalette(config *Config) error {
+	if config.Palette == nil {
+		return nil
+	}
+	input := config.Palette
+	var resolved *Palette
+	switch input.Name {
+	case "":
+		resolved = clonePalette(paletteDefaults)
+	case "high-contrast":
+		resolved = clonePalette(highContrastPalette)
+		resolved.Name = input.Name
+	default:
+		return fmt.Errorf("unsupported built-in palette %q", input.Name)
+	}
+	for mode, overrides := range map[string]map[string]string{"light": input.Light, "dark": input.Dark} {
+		target := resolved.Light
+		if mode == "dark" {
+			target = resolved.Dark
+		}
+		for token, value := range overrides {
+			if !paletteTokenNames[token] {
+				return fmt.Errorf("palette.%s contains unsupported token %q", mode, token)
+			}
+			normalized, err := normalizePaletteColor(value)
+			if err != nil {
+				config.Palette = nil
+				config.Notices = append(config.Notices, "Palette ignored because it contains an invalid hex color; built-in defaults are active.")
+				return nil
+			}
+			target[token] = normalized
+		}
+	}
+	config.Palette = resolved
+	return nil
+}
+
+func normalizePaletteColor(value string) (string, error) {
+	if len(value) == 4 && value[0] == '#' {
+		value = fmt.Sprintf("#%c%c%c%c%c%c", value[1], value[1], value[2], value[2], value[3], value[3])
+	}
+	if _, err := rgb(value); err != nil {
+		return "", errors.New("must be an opaque three- or six-digit hex color")
+	}
+	return strings.ToLower(value), nil
+}
+
+func validateResolvedPalette(palette *Palette) error {
+	if palette == nil {
+		return nil
+	}
+	for mode, values := range map[string]map[string]string{"light": palette.Light, "dark": palette.Dark} {
+		if len(values) != len(paletteTokenNames) {
+			return fmt.Errorf("palette.%s must resolve all semantic tokens", mode)
+		}
+		for token, value := range values {
+			if !paletteTokenNames[token] {
+				return fmt.Errorf("palette.%s contains unsupported token %q", mode, token)
+			}
+			if _, err := rgb(value); err != nil {
+				return fmt.Errorf("palette.%s token %q: %w", mode, token, err)
+			}
+		}
+	}
+	return nil
+}
+
+func commandScopes(id string) []string {
+	if id == "trajectory.dismiss" || id == "trajectory.toggleHelp" {
+		return []string{"overlay"}
+	}
+	if strings.HasPrefix(id, "view.") {
+		return []string{"trajectory", "group", "paths", "comparison"}
+	}
+	return []string{strings.SplitN(id, ".", 2)[0]}
 }
 
 func validKeyBinding(binding string) bool {

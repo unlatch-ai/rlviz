@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/analyzers"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/analyzers"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 type Source struct {
@@ -259,9 +259,8 @@ func (h *Host) Stream(ctx context.Context, plugin *Plugin, request Request, visi
 	if err := prepared.cmd.Start(); err != nil {
 		return "", fmt.Errorf("start adapter %s: %w", prepared.plugin.Manifest.Name, err)
 	}
-	reader := io.Reader(stdout)
 	limited := &boundedReader{reader: stdout, limit: positive(h.MaxStdoutBytes, 32<<20)}
-	reader = limited
+	reader := io.Reader(limited)
 	decodeErr := model.DecodeContext(prepared.ctx, reader, func(record *model.Record) error {
 		if err := validateRecordProvenance(record, request.Source.Root); err != nil {
 			return err
@@ -516,12 +515,12 @@ func writePayload(data []byte) (string, func(), error) {
 	path := f.Name()
 	cleanup := func() { _ = os.Remove(path) }
 	if err := f.Chmod(0o600); err != nil {
-		f.Close()
+		_ = f.Close()
 		cleanup()
 		return "", func() {}, err
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
+		_ = f.Close()
 		cleanup()
 		return "", func() {}, err
 	}

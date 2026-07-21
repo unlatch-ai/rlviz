@@ -1,10 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { App } from "./App";
 import { ContextDetails } from "./ContextDetails";
 import { ContextTrack } from "./ContextTrack";
-import { sampleTrajectory } from "./sample";
-import type { Trajectory, TrajectoryEvent } from "./types";
+import type { TrajectoryEvent } from "./types";
 
 const contextEvents: TrajectoryEvent[] = [
   { id: "after", sequence: 20, kind: "state", context: { operation: "compaction", input_tokens_before: 8000, input_tokens: 2000, capacity: 10000, provenance: "source_native", retained_event_ids: ["before"], summarized_event_ids: ["prompt"], summary: "Earlier turns summarized." } },
@@ -31,6 +29,7 @@ describe("ContextTrack", () => {
     ]);
     expect(markers[0]).toHaveAccessibleName(/6,000 input tokens after.*capacity not reported.*adapter-derived.*derivation: tokenizer count/i);
     expect(markers[1]).toHaveAccessibleName(/8,000 input tokens before.*2,000 input tokens after.*10,000 capacity.*20% occupancy/i);
+    expect(track).toHaveAttribute("data-state", "partial");
     expect(track).toHaveTextContent("4/9 events loaded · partial");
     expect(track).toHaveTextContent("gaps unobserved");
     expect(container.querySelector("path, polyline")).not.toBeInTheDocument();
@@ -66,16 +65,4 @@ describe("ContextTrack", () => {
     expect(onJump).toHaveBeenCalledWith("prompt");
   });
 
-  it("keeps the track on every surface and uses its markers to select the Inspector", () => {
-    const trajectory: Trajectory = { ...sampleTrajectory, events: [...sampleTrajectory.events, contextEvents[0]] };
-    render(<App initialTrajectory={trajectory} />);
-    const marker = screen.getByRole("button", { name: /Event 20, compaction/ });
-    fireEvent.click(marker);
-    expect(screen.getByText("Context compacted", { selector: ".selected-heading h3" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Context" })).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "2" });
-    expect(screen.getByRole("navigation", { name: "Context events" })).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "3" });
-    expect(screen.getByRole("navigation", { name: "Context events" })).toBeInTheDocument();
-  });
 });

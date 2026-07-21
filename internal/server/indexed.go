@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 const (
@@ -83,6 +83,8 @@ func (api *indexedAPI) serveHTTP(response http.ResponseWriter, request *http.Req
 	switch request.URL.Path {
 	case "/api/v1/indexed/trajectory":
 		api.trajectory(response, request)
+	case "/api/v1/indexed/browse":
+		api.browse(response, request)
 	case "/api/v1/indexed/events":
 		api.events(response, request)
 	case "/api/v1/indexed/signals":

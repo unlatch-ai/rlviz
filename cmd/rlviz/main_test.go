@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unlatch-ai/rlviz/internal/daemon"
+	"github.com/TheSnakeFang/rlviz/internal/daemon"
 )
 
 func TestNormalizeViewerArgumentsAllowsFlagsAfterPath(t *testing.T) {

@@ -3,6 +3,7 @@
 /web/node_modules/
 /web/*.tsbuildinfo
 /web/src/*.tsbuildinfo
+/site/dist/
 *.db
 *.db-shm
 *.db-wal

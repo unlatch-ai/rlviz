@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build && playwright test",
     "test": "vitest run",
     "test:watch": "vitest"
   },

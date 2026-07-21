@@ -20,6 +20,36 @@ describe("presentation configuration", () => {
     expect(root.style.getPropertyValue("--danger")).toBe("");
   });
 
+  it("applies mode-aware palette tokens and follows the data-theme attribute", async () => {
+    const root = document.createElement("div");
+    root.style.setProperty("--ctx", "#111111");
+    const config: PresentationConfig = {
+      api_version: "rlviz.dev/v1alpha1",
+      palette: {
+        name: "high-contrast",
+        light: { ctx: "#05c", failPolicy: "#b00020", page: "#ffffff" },
+        dark: { ctx: "#66aaff", failPolicy: "#ff5c5c", page: "#000000" },
+      },
+    };
+    const cleanup = applyPresentationTheme(config, root);
+    expect(root.style.getPropertyValue("--ctx")).toBe("#05c");
+    expect(root.style.getPropertyValue("--fail-policy")).toBe("#b00020");
+    root.setAttribute("data-theme", "dark");
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.style.getPropertyValue("--ctx")).toBe("#66aaff");
+    root.setAttribute("data-theme", "light");
+    cleanup();
+    expect(root.style.getPropertyValue("--ctx")).toBe("#111111");
+    expect(root.style.getPropertyValue("--fail-policy")).toBe("");
+  });
+
+  it("ignores the entire palette if an API value is malformed", () => {
+    const root = document.createElement("div");
+    const config = { api_version: "rlviz.dev/v1alpha1", palette: { light: { ctx: "blue", good: "#005a00" } } } as unknown as PresentationConfig;
+    applyPresentationTheme(config, root);
+    expect(root.style.getPropertyValue("--good")).toBe("");
+  });
+
   it("formats the bounded scalar vocabulary deterministically", () => {
     expect(formatPresentedScalar(0.125, { format: "percent_fraction", precision: 1 })).toBe("12.5%");
     expect(formatPresentedScalar(1536, { format: "bytes", precision: 2 })).toBe("1.50 KiB");

@@ -39,15 +39,15 @@ func Open(path string) (*Index, error) {
 	idx := &Index{db: db}
 	ctx := context.Background()
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("ping sqlite index: %w", err)
 	}
 	if err := os.Chmod(abs, 0o600); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("secure sqlite index: %w", err)
 	}
 	if err := idx.migrate(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return idx, nil

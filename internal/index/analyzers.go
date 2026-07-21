@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/unlatch-ai/rlviz/internal/analyzers"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	"github.com/TheSnakeFang/rlviz/internal/analyzers"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 // LoopRetryAnalysis returns a validated cached analysis when the analyzer and
@@ -108,17 +108,17 @@ func (i *Index) analyzerInput(ctx context.Context, sourceID, trajectoryID string
 	}
 	for rows.Next() {
 		if len(input.Events) >= analyzers.MaxInputEvents {
-			rows.Close()
+			_ = rows.Close()
 			return analyzers.Input{}, fmt.Errorf("%w: analyzer events exceed maximum %d", ErrResultTooLarge, analyzers.MaxInputEvents)
 		}
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return analyzers.Input{}, err
 		}
 		var event model.Event
 		if err := json.Unmarshal(raw, &event); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return analyzers.Input{}, fmt.Errorf("decode analyzer event: %w", err)
 		}
 		input.Events = append(input.Events, event)

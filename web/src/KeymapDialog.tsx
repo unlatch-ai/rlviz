@@ -7,6 +7,7 @@ const scopeLabels: Record<CommandScope, string> = {
   group: "Rollout group",
   paths: "Behavioral paths",
   comparison: "Comparison",
+  overlay: "Overlays",
 };
 
 type Drafts = Record<CommandId, string>;

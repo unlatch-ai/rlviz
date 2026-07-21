@@ -1,6 +1,7 @@
 import { fireEvent, render } from "@testing-library/react";
 import { createElement, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import interactionSpec from "../../docs/interaction-spec.md?raw";
 import { applyPresentationKeymap, bindingsFor, commandIds, commands, detectKeymapConflicts, eventBinding, keymapStorageKey, loadKeymapOverrides, matchesBinding, normalizeBinding, presentationKeymapOverrides, resetKeymapOverrides, saveKeymapOverrides, setCommandBindings } from "./commands";
 import { useCommands } from "./commands";
 
@@ -11,11 +12,33 @@ describe("command registry", () => {
     expect(commandIds.trajectory.next).toBe("trajectory.next");
   });
 
+  it("registers every command ID documented in interaction-spec section 9", () => {
+		const section = interactionSpec.split("## 9. Command grammar")[1]?.split("\n## 10.")[0] ?? "";
+		const documented = section.split("\n").filter((line) => line.startsWith("| `")).flatMap((line) => {
+			const ids = [...line.split("|")[1].matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+			const namespace = ids[0]?.slice(0, ids[0].lastIndexOf(".") + 1) ?? "";
+			return ids.map((id) => id.includes(".") ? id : namespace + id);
+		});
+		expect(documented.length).toBeGreaterThan(0);
+		for (const id of documented) {
+			if (id.endsWith("*")) {
+				expect(commands.some((command) => command.id.startsWith(id.slice(0, -1))), `documented wildcard ${id}`).toBe(true);
+			} else {
+				expect(commands.some((command) => command.id === id), `documented command ${id}`).toBe(true);
+			}
+		}
+	});
+
   it("normalizes browser keys and common binding aliases", () => {
     expect(normalizeBinding("space")).toBe("Space");
     expect(normalizeBinding("Ctrl+K")).toBe("Ctrl+k");
     expect(eventBinding(new KeyboardEvent("keydown", { key: " ", ctrlKey: true }))).toBe("Ctrl+Space");
   });
+
+	it("preserves plus as a printable zoom binding", () => {
+		expect(normalizeBinding("+")).toBe("+");
+		expect(matchesBinding(new KeyboardEvent("keydown", { key: "+", shiftKey: true }), "+")).toBe(true);
+	});
 
   it("matches portable and shifted modifiers without accepting extras", () => {
     expect(matchesBinding(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }), "Mod+k")).toBe(true);
@@ -51,8 +74,8 @@ describe("command registry", () => {
   });
 
   it("applies portable project defaults below browser-local overrides", () => {
-    const cleanup = applyPresentationKeymap({ api_version: "rlviz.dev/v1alpha1", keymap: { bindings: { [commandIds.trajectory.next]: ["n", "ArrowDown"] } } });
-    expect(bindingsFor(commandIds.trajectory.next, {})).toEqual(["n", "ArrowDown"]);
+    const cleanup = applyPresentationKeymap({ api_version: "rlviz.dev/v1alpha1", keymap: { bindings: { [commandIds.trajectory.next]: ["l", "ArrowDown"] } } });
+    expect(bindingsFor(commandIds.trajectory.next, {})).toEqual(["l", "ArrowDown"]);
     expect(bindingsFor(commandIds.trajectory.next, { [commandIds.trajectory.next]: ["j"] })).toEqual(["j"]);
     cleanup();
     expect(bindingsFor(commandIds.trajectory.next, {})).toEqual(["j"]);

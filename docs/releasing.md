@@ -9,7 +9,7 @@ artifact attestations, and attaches a generated Homebrew formula.
 
 ### Homebrew
 
-The public `unlatch-ai/homebrew-tap` repository polls the latest RLViz
+The public `TheSnakeFang/homebrew-tap` repository polls the latest RLViz
 release hourly and commits an updated attached formula with its repository-local
 `GITHUB_TOKEN`. No cross-repository token is required. A maintainer can also run
 the tap's `sync rlviz` workflow manually after a release.
@@ -21,6 +21,20 @@ trusted publisher is configured for `.github/workflows/release.yml`, and the
 repository variable `NPM_PUBLISH_ENABLED` enables the job. Recovery and
 re-bootstrap steps live in
 [`packages/npm/README.md`](../packages/npm/README.md).
+
+### Documentation
+
+The documentation site is hosted on Vercel at `rlviz.dev`, not GitHub Pages.
+Generate it locally and deploy the generated directory from the repository
+root:
+
+```bash
+make site
+vercel deploy site/dist
+```
+
+The generated `CNAME` file is harmless static output; Vercel project and domain
+configuration remain the deployment source of truth.
 
 ## Publish
 

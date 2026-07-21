@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unlatch-ai/rlviz/internal/plugins"
-	"github.com/unlatch-ai/rlviz/internal/plugins/sourceprofile"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/plugins/sourceprofile"
 )
 
 func TestInitPluginFromSourceReturnsAgentReadyPlan(t *testing.T) {

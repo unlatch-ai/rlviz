@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RLViz concept — Multi-compare (stage-aligned)</title>
+<style>
+  :root { --fg:#1a1a1a; --dim:#8a8a8a; --faint:#dcdcdc; --bg:#fafafa; --err:#c0392b; --ahead:#2e7d4f; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.5 ui-sans-serif,system-ui; padding:28px 36px; }
+  h1 { font-size:14px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:18px; }
+  table { border-collapse:collapse; }
+  th { font-size:11px; font-weight:600; color:var(--dim); text-align:left; padding:4px 10px; border-bottom:1px solid var(--faint); }
+  th.divergent { color:var(--err); }
+  td { padding:6px 10px; vertical-align:middle; }
+  tr.roll { cursor:pointer; }
+  tr.roll.selected td { background:#efefef; }
+  tr.roll td:first-child { border-left:2px solid transparent; }
+  tr.roll.selected td:first-child { border-left-color:var(--fg); }
+  .rid { font:11px ui-monospace,monospace; color:var(--dim); width:86px; }
+  .rid b { color:var(--fg); font-weight:600; }
+  .cell { position:relative; height:12px; background:#ececec; }
+  .cell .err { position:absolute; top:0; bottom:0; width:2px; background:var(--err); }
+  .cell.missing { background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2 3px,#e4e4e4 3px,#e4e4e4 6px); }
+  .delta { font:11px ui-monospace,monospace; text-align:right; padding-left:2px; }
+  .delta.over { color:var(--err); }
+  .delta.under { color:var(--ahead); }
+  .delta.ref { color:var(--dim); }
+  .verdict { width:14px; text-align:center; font-size:11px; }
+  .verdict.fail { color:var(--err); font-weight:700; }
+  .verdict.pass { color:var(--dim); }
+  .note { margin-top:18px; color:var(--dim); font-size:12px; max-width:640px; }
+  footer { position:fixed; bottom:0; left:0; right:0; padding:8px 36px; background:var(--bg); border-top:1px solid var(--faint); color:var(--dim); font:11px ui-monospace,monospace; }
+  kbd { background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px; }
+</style>
+</head>
+<body>
+<h1>case fix-flaky-retry · 5 rollouts, stage-aligned</h1>
+<div class="sub">reference: <b>traj-004</b> (pass, reward 1.00) · columns are derived stage anchors, cell width ∝ steps in stage · Δ = steps vs reference</div>
+<table id="grid"></table>
+<div class="note" id="note"></div>
+<footer>
+  <kbd>j</kbd><kbd>k</kbd> rollout &nbsp; <kbd>h</kbd><kbd>l</kbd> stage &nbsp; <kbd>d</kbd> divergent stage &nbsp; <kbd>Enter</kbd> pair-compare vs reference &nbsp; <kbd>Esc</kbd> back
+</footer>
+<script>
+// Stages are semantic anchors (episode boundaries / checkpoints), NOT step indices.
+// Within a stage, sides have independent lengths; tool-order permutations inside
+// a stage are not divergence. Divergence is the first stage whose behavior
+// differs in an outcome-relevant way.
+const STAGES = ["setup", "reproduce", "diagnose", "patch", "verify"];
+const ROLLS = [
+  { id: "traj-004", ref: true,  pass: true,  steps: [6, 14, 22, 18, 9],  errs: [0,0,0,0,0], div: -1 },
+  { id: "traj-011", ref: false, pass: true,  steps: [7, 12, 31, 20, 11], errs: [0,0,1,0,0], div: -1 },
+  { id: "traj-017", ref: false, pass: false, steps: [6, 15, 58, 24, 0],  errs: [0,0,4,2,0], div: 2 },
+  { id: "traj-009", ref: false, pass: false, steps: [8, 41, 12, 0, 0],   errs: [0,3,0,0,0], div: 1 },
+  { id: "traj-021", ref: false, pass: false, steps: [5, 13, 19, 44, 6],  errs: [0,0,0,5,1], div: 3 },
+];
+const PX = 2.2; // px per step
+let sel = 1, selStage = 0;
+
+function render() {
+  const ref = ROLLS.find(x => x.ref);
+  let html = "<tr><th></th><th></th>";
+  STAGES.forEach((s, si) => {
+    const divergentHere = ROLLS.some(x => x.div === si);
+    html += `<th colspan="2" class="${divergentHere ? "divergent" : ""}">${s}${si === selStage ? " ◂" : ""}</th>`;
+  });
+  html += "</tr>";
+  ROLLS.forEach((t, ti) => {
+    html += `<tr class="roll ${ti === sel ? "selected" : ""}" data-i="${ti}">`;
+    html += `<td class="rid">${t.ref ? "<b>" + t.id + " ref</b>" : t.id}</td>`;
+    html += `<td class="verdict ${t.pass ? "pass" : "fail"}">${t.pass ? "·" : "✕"}</td>`;
+    STAGES.forEach((s, si) => {
+      const n = t.steps[si];
+      if (n === 0) { html += `<td><div class="cell missing" style="width:${ref.steps[si] * PX}px"></div></td><td class="delta over">—</td>`; return; }
+      let errs = "";
+      for (let e = 0; e < t.errs[si]; e++) errs += `<span class="err" style="left:${((e + 0.5) / t.errs[si] * 100).toFixed(1)}%"></span>`;
+      const d = n - ref.steps[si];
+      const dCls = t.ref ? "ref" : d > 4 ? "over" : d < -2 ? "under" : "ref";
+      html += `<td><div class="cell" style="width:${n * PX}px">${errs}</div></td>`;
+      html += `<td class="delta ${dCls}">${t.ref ? n : (d >= 0 ? "+" + d : d)}</td>`;
+    });
+    html += "</tr>";
+  });
+  document.getElementById("grid").innerHTML = html;
+  document.querySelectorAll("tr.roll").forEach(tr => tr.onclick = () => { sel = +tr.dataset.i; render(); });
+  const t = ROLLS[sel];
+  const notes = {
+    "-1": t.ref ? "Reference rollout. All deltas measured against this." : "No stage-level divergence from reference — same behavior, minor cost differences. Tool order inside stages differs but is not divergence.",
+    1: "Diverged at <b>reproduce</b>: 3 tool errors, never produced a failing test, terminated before diagnose completed (hatched = stage absent).",
+    2: "Diverged at <b>diagnose</b>: 58 steps vs 22 — looped re-reading the same file (retry comb), patched the wrong module, never reached verify.",
+    3: "Diverged at <b>patch</b>: matched reference through diagnose, then 44 steps of failed edits with 5 tool errors; verify ran but failed.",
+  };
+  document.getElementById("note").innerHTML = `<b>${t.id}</b> — ` + (notes[t.div] || notes["-1"]);
+}
+document.addEventListener("keydown", ev => {
+  if (ev.key === "j") sel = Math.min(ROLLS.length - 1, sel + 1);
+  else if (ev.key === "k") sel = Math.max(0, sel - 1);
+  else if (ev.key === "l") selStage = Math.min(STAGES.length - 1, selStage + 1);
+  else if (ev.key === "h") selStage = Math.max(0, selStage - 1);
+  else if (ev.key === "d") { const t = ROLLS[sel]; if (t.div >= 0) selStage = t.div; }
+  else if (ev.key === "Enter") { window.location.href = "compare.html"; return; }
+  else if (ev.key === "Escape") { window.location.href = "triage.html"; return; }
+  else return;
+  ev.preventDefault(); render();
+});
+render();
+</script>
+</body>
+</html>

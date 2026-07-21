@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	rolloutindex "github.com/unlatch-ai/rlviz/internal/index"
-	"github.com/unlatch-ai/rlviz/internal/model"
+	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
+	"github.com/TheSnakeFang/rlviz/internal/model"
 )
 
 func testIndexedHandler(t *testing.T) http.Handler {
@@ -110,6 +111,96 @@ func TestIndexedTrajectoryReturnsSourcePresentation(t *testing.T) {
 	presentation, ok := decodeIndexedResponse(t, response)["presentation"].(map[string]any)
 	if !ok || presentation["api_version"] != "rlviz.dev/v1alpha1" {
 		t.Fatalf("presentation=%#v", presentation)
+	}
+}
+
+func TestIndexedBrowseReturnsTheKnownCollection(t *testing.T) {
+	response := indexedRequest(t, testIndexedHandler(t), http.MethodGet, "/api/v1/indexed/browse", true)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	payload := decodeIndexedResponse(t, response)
+	rows, ok := payload["trajectories"].([]any)
+	if !ok || len(rows) < 2 {
+		t.Fatalf("trajectories=%#v", payload["trajectories"])
+	}
+	first := rows[0].(map[string]any)
+	if first["source_id"] != "source-group" || first["source_name"] != "group.ndjson" || first["run_name"] != "two sampled attempts" || first["trajectory"] == nil || first["metrics"] == nil {
+		t.Fatalf("first row=%#v", first)
+	}
+	if _, duplicated := first["metrics"].(map[string]any)["trajectory"]; duplicated {
+		t.Fatalf("browse metrics duplicate the trajectory: %#v", first["metrics"])
+	}
+}
+
+type browseTestReader struct {
+	IndexedReader
+	groups       []rolloutindex.IndexedRecord[*model.Group]
+	pages        map[string][]rolloutindex.TrajectorySummary
+	contextCalls int
+}
+
+func (reader *browseTestReader) Sources(context.Context) ([]rolloutindex.SourceInfo, error) {
+	return []rolloutindex.SourceInfo{{Source: rolloutindex.Source{ID: "source", Path: "/tmp/source.ndjson"}}}, nil
+}
+
+func (reader *browseTestReader) Groups(context.Context, string) ([]rolloutindex.IndexedRecord[*model.Group], error) {
+	return reader.groups, nil
+}
+
+func (reader *browseTestReader) GroupSummariesPage(_ context.Context, _, groupID string, limit int) (rolloutindex.SummaryPage, error) {
+	items := reader.pages[groupID]
+	page := rolloutindex.SummaryPage{Total: int64(len(items))}
+	page.Items = items[:min(limit, len(items))]
+	return page, nil
+}
+
+func (reader *browseTestReader) TrajectoryContext(context.Context, string, string) (rolloutindex.TrajectoryContext, error) {
+	reader.contextCalls++
+	return rolloutindex.TrajectoryContext{}, errors.New("browse must not query trajectory context")
+}
+
+func browseSummaries(count int) []rolloutindex.TrajectorySummary {
+	items := make([]rolloutindex.TrajectorySummary, count)
+	for index := range items {
+		items[index] = rolloutindex.TrajectorySummary{
+			Trajectory: rolloutindex.IndexedRecord[*model.Trajectory]{Value: &model.Trajectory{ID: fmt.Sprintf("trajectory-%d", index)}},
+			RunName:    "run", CaseName: "case", GroupName: "group",
+		}
+	}
+	return items
+}
+
+func TestIndexedBrowseAcceptsExactlyTheCapAndUsesSummaryContext(t *testing.T) {
+	reader := &browseTestReader{
+		groups: []rolloutindex.IndexedRecord[*model.Group]{
+			{Value: &model.Group{ID: "full"}}, {Value: &model.Group{ID: "empty"}},
+		},
+		pages: map[string][]rolloutindex.TrajectorySummary{"full": browseSummaries(maxBrowseRows), "empty": {}},
+	}
+	response := indexedRequest(t, NewIndexedHandler(reader, "secret"), http.MethodGet, "/api/v1/indexed/browse", true)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if reader.contextCalls != 0 {
+		t.Fatalf("browse made %d per-trajectory context queries", reader.contextCalls)
+	}
+	payload := decodeIndexedResponse(t, response)
+	if payload["count"] != float64(maxBrowseRows) {
+		t.Fatalf("count=%v", payload["count"])
+	}
+}
+
+func TestIndexedBrowseRejectsOnlyWhenTheNextGroupContributesPastTheCap(t *testing.T) {
+	reader := &browseTestReader{
+		groups: []rolloutindex.IndexedRecord[*model.Group]{
+			{Value: &model.Group{ID: "full"}}, {Value: &model.Group{ID: "extra"}},
+		},
+		pages: map[string][]rolloutindex.TrajectorySummary{"full": browseSummaries(maxBrowseRows), "extra": browseSummaries(1)},
+	}
+	response := indexedRequest(t, NewIndexedHandler(reader, "secret"), http.MethodGet, "/api/v1/indexed/browse", true)
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }
 

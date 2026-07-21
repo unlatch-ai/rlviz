@@ -25,6 +25,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm --prefix web ci
       - run: npx --prefix web playwright install --with-deps chromium
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+      - name: Run full Go lint suite
+        run: golangci-lint run
       - run: make check
       - run: make web-e2e
       - run: go test -race ./...

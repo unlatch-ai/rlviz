@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unlatch-ai/rlviz/internal/plugins"
+	"github.com/TheSnakeFang/rlviz/internal/plugins"
 )
 
 func TestLoadSourceReturnsStructuredUnsupportedFormat(t *testing.T) {

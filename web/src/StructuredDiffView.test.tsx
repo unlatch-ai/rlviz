@@ -29,6 +29,12 @@ describe("structured tool differences", () => {
     expect(screen.getAllByText("No field changes")).toHaveLength(2);
   });
 
+  it("marks bounded differences as mild attention", () => {
+    const many = Object.fromEntries(Array.from({ length: 70 }, (_, index) => [`field_${index}`, index]));
+    render(<StructuredToolDiff left={tool("left", "bounded", many, {})} right={tool("right", "bounded", {}, {})} />);
+    expect(screen.getByText(/Bounded view/)).toHaveAttribute("data-state", "truncated");
+  });
+
   it("stays absent for gaps, non-tool events, and payload-free events", () => {
     const event: TrajectoryEvent = { id: "message", sequence: 1, kind: "message", content: "hello" };
     const { rerender } = render(<StructuredToolDiff left={event} right={event} />);
