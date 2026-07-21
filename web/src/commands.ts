@@ -132,6 +132,7 @@ function keyName(key: string): string {
 }
 
 export function normalizeBinding(binding: string): string {
+	if (binding.trim() === "+") return "+";
   const parts = binding.split("+").map((part) => part.trim()).filter(Boolean);
   const key = keyName(parts.pop() ?? "");
   const modifiers = new Set(parts.map((part) => part.toLowerCase()));
@@ -141,6 +142,7 @@ export function normalizeBinding(binding: string): string {
 
 function validBinding(binding: string): boolean {
   if (!binding || binding.length > 32 || /[\u0000-\u001f\u007f]/.test(binding)) return false;
+	if (binding.trim() === "+") return true;
   const parts = binding.split("+").map((part) => part.trim());
   if (!parts.at(-1)) return false;
   const modifiers = parts.slice(0, -1).map((part) => part.toLowerCase());

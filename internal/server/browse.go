@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"path/filepath"
@@ -18,13 +19,39 @@ type indexedBrowseReader interface {
 }
 
 type browseRow struct {
-	SourceID   string                         `json:"source_id"`
-	SourceName string                         `json:"source_name"`
-	RunName    string                         `json:"run_name,omitempty"`
-	CaseName   string                         `json:"case_name,omitempty"`
-	GroupName  string                         `json:"group_name,omitempty"`
-	Trajectory *model.Trajectory              `json:"trajectory"`
-	Metrics    rolloutindex.TrajectorySummary `json:"metrics"`
+	SourceID   string            `json:"source_id"`
+	SourceName string            `json:"source_name"`
+	RunName    string            `json:"run_name,omitempty"`
+	CaseName   string            `json:"case_name,omitempty"`
+	GroupName  string            `json:"group_name,omitempty"`
+	Trajectory *model.Trajectory `json:"trajectory"`
+	Metrics    browseMetrics     `json:"metrics"`
+}
+
+type browseMetrics struct {
+	Signals       map[string]json.RawMessage `json:"signals,omitempty"`
+	Reward        *float64                   `json:"reward,omitempty"`
+	Success       *bool                      `json:"success,omitempty"`
+	TokenCount    *int64                     `json:"token_count,omitempty"`
+	LatencyMS     *float64                   `json:"latency_ms,omitempty"`
+	Status        string                     `json:"status,omitempty"`
+	Termination   string                     `json:"termination,omitempty"`
+	EventCount    int64                      `json:"event_count"`
+	ErrorCount    int64                      `json:"error_count"`
+	FirstSequence *int64                     `json:"first_sequence,omitempty"`
+	LastSequence  *int64                     `json:"last_sequence,omitempty"`
+	SignalCount   int64                      `json:"signal_count"`
+	ArtifactCount int64                      `json:"artifact_count"`
+}
+
+func browseSummary(summary rolloutindex.TrajectorySummary) browseMetrics {
+	return browseMetrics{
+		Signals: summary.Signals, Reward: summary.Reward, Success: summary.Success,
+		TokenCount: summary.TokenCount, LatencyMS: summary.LatencyMS, Status: summary.Status,
+		Termination: summary.Termination, EventCount: summary.EventCount, ErrorCount: summary.ErrorCount,
+		FirstSequence: summary.FirstSequence, LastSequence: summary.LastSequence,
+		SignalCount: summary.SignalCount, ArtifactCount: summary.ArtifactCount,
+	}
 }
 
 func (api *indexedAPI) browse(response http.ResponseWriter, request *http.Request) {
@@ -51,29 +78,24 @@ func (api *indexedAPI) browse(response http.ResponseWriter, request *http.Reques
 		}
 		for _, group := range groups {
 			remaining := maxBrowseRows - len(rows)
-			if remaining <= 0 {
-				writeJSONError(response, http.StatusRequestEntityTooLarge, "browse_too_large", errors.New("browse collection exceeds 1000 trajectories"))
-				return
+			limit := remaining
+			if limit == 0 {
+				limit = 1
 			}
-			page, err := api.reader.GroupSummariesPage(request.Context(), source.ID, group.Value.ID, remaining)
+			page, err := api.reader.GroupSummariesPage(request.Context(), source.ID, group.Value.ID, limit)
 			if err != nil {
 				api.writeReadError(response, "browse_failed", err)
 				return
 			}
-			if page.Total > int64(len(page.Items)) {
+			if (remaining == 0 && page.Total > 0) || page.Total > int64(remaining) {
 				writeJSONError(response, http.StatusRequestEntityTooLarge, "browse_too_large", errors.New("browse collection exceeds 1000 trajectories"))
 				return
 			}
 			for _, summary := range page.Items {
-				ctx, err := api.reader.TrajectoryContext(request.Context(), source.ID, summary.Trajectory.Value.ID)
-				if err != nil {
-					api.writeReadError(response, "browse_failed", err)
-					return
-				}
 				rows = append(rows, browseRow{
 					SourceID: source.ID, SourceName: filepath.Base(source.Path),
-					RunName: ctx.Run.Value.Name, CaseName: ctx.Case.Value.Name,
-					GroupName: ctx.Group.Value.Name, Trajectory: summary.Trajectory.Value, Metrics: summary,
+					RunName: summary.RunName, CaseName: summary.CaseName,
+					GroupName: summary.GroupName, Trajectory: summary.Trajectory.Value, Metrics: browseSummary(summary),
 				})
 			}
 		}

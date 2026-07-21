@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadBrowse, loadComparison, loadGroupPaths, loadTrajectory, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
+import { analysisEndpoint, artifactContentEndpoint, comparisonEndpoint, daemonToken, groupEndpoint, groupPathsEndpoint, loadAnalysis, loadArtifactContent, loadBrowse, loadComparison, loadGroupPaths, loadIndexedTrajectory, loadTrajectory, normalizeTrajectoryResponse, trajectoryEndpoint } from "./api";
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); window.localStorage.clear(); });
 
@@ -28,6 +28,21 @@ describe("trajectory API normalization", () => {
 		expect(fetch.mock.calls[0][1]?.headers).toMatchObject({ Authorization: "Bearer stale" });
 		expect(fetch.mock.calls[1][1]?.headers).not.toHaveProperty("Authorization");
 		expect(window.localStorage.getItem("rlviz.daemon-token")).toBeNull();
+	});
+
+	it("clears stored tokens on auth-shaped trajectory failures", async () => {
+		localStorage.setItem("rlviz.daemon-token", "stale");
+		vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
+		await expect(loadTrajectory()).resolves.toMatchObject({ isSample: true });
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
+
+		localStorage.setItem("rlviz.daemon-token", "stale-again");
+		await expect(loadIndexedTrajectory("source", "trajectory")).rejects.toThrow("403");
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
+
+		localStorage.setItem("rlviz.daemon-token", "stale-browse");
+		await expect(loadBrowse()).rejects.toThrow("403");
+		expect(localStorage.getItem("rlviz.daemon-token")).toBeNull();
 	});
 
 	it("surfaces an actionable error after the retry is also unauthorized", async () => {

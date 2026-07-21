@@ -28,6 +28,44 @@ func TestForegroundViewerValidatesPresentationBeforeSource(t *testing.T) {
 	}
 }
 
+func TestShutdownDrainsRequestsBeforeCleanup(t *testing.T) {
+	draining := make(chan struct{})
+	release := make(chan struct{})
+	cleaned := make(chan struct{})
+	viewer := &RunningViewer{cleanup: func() { close(cleaned) }}
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- viewer.finishShutdown(func() error {
+			close(draining)
+			<-release
+			return nil
+		})
+	}()
+	<-draining
+	select {
+	case <-cleaned:
+		t.Fatal("cleanup ran before the active request drained")
+	default:
+	}
+	close(release)
+	if err := <-shutdownDone; err != nil {
+		t.Fatal(err)
+	}
+	<-cleaned
+}
+
+func TestFailedShutdownDoesNotCleanupUndrainedState(t *testing.T) {
+	cleaned := false
+	viewer := &RunningViewer{cleanup: func() { cleaned = true }}
+	want := errors.New("shutdown deadline")
+	if err := viewer.finishShutdown(func() error { return want }); !errors.Is(err, want) {
+		t.Fatalf("shutdown error = %v", err)
+	}
+	if cleaned {
+		t.Fatal("cleanup ran after shutdown failed before draining")
+	}
+}
+
 func TestForegroundViewerRequiresFragmentToken(t *testing.T) {
 	listener := testListener{address: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4173}}
 	viewer, err := startViewer(Viewer{SourcePath: filepath.Join("..", "..", "fixtures", "canonical", "linear.ndjson")}, listener)

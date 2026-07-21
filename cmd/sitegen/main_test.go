@@ -16,6 +16,18 @@ func TestMarkdownRendersCoreStructures(t *testing.T) {
 	}
 }
 
+func TestMarkdownDropsUnsafeLinkTargets(t *testing.T) {
+	got := markdown([]byte("[web](https://rlviz.dev) [mail](mailto:test@example.com) [section](#title) [relative](docs/start.html) [bad](javascript:alert(1)) [data](data:text/html,payload)"))
+	for _, want := range []string{`href="https://rlviz.dev"`, `href="mailto:test@example.com"`, `href="#title"`, `href="docs/start.html"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("safe link missing %q: %s", want, got)
+		}
+	}
+	if strings.Contains(strings.ToLower(got), `href="javascript:`) || strings.Contains(strings.ToLower(got), `href="data:`) {
+		t.Fatalf("unsafe href survived: %s", got)
+	}
+}
+
 func TestBuildWritesEveryPageAndStylesheet(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {

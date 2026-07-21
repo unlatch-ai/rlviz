@@ -35,6 +35,11 @@ describe("command registry", () => {
     expect(eventBinding(new KeyboardEvent("keydown", { key: " ", ctrlKey: true }))).toBe("Ctrl+Space");
   });
 
+	it("preserves plus as a printable zoom binding", () => {
+		expect(normalizeBinding("+")).toBe("+");
+		expect(matchesBinding(new KeyboardEvent("keydown", { key: "+", shiftKey: true }), "+")).toBe(true);
+	});
+
   it("matches portable and shifted modifiers without accepting extras", () => {
     expect(matchesBinding(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }), "Mod+k")).toBe(true);
     expect(matchesBinding(new KeyboardEvent("keydown", { key: "k", metaKey: true }), "Mod+k")).toBe(true);

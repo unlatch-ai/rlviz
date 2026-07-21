@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attentionScore, stagesFor } from "./instrument";
+import { attentionScore, stageChanged, stagesFor } from "./instrument";
 import type { BrowseTrajectory, ComparisonSide } from "./types";
 
 const row = (id: string, values: { errors?: number; pass?: boolean; reward?: number }): BrowseTrajectory => ({
@@ -26,7 +26,7 @@ describe("instrument projections", () => {
     expect(ordered.map(({ trajectory }) => trajectory.id)).toEqual(["tool-errors", "policy-failure", "marginal", "nominal"]);
   });
 
-  it("chooses adapter stage anchors instead of outcome-only alignment when present", () => {
+  it("labels sidecar stage anchors as annotated stages", () => {
     const anchored: ComparisonSide = {
       trajectory: { id: "anchored" },
       events: [
@@ -36,12 +36,31 @@ describe("instrument projections", () => {
       ],
     };
     expect(stagesFor(anchored)).toMatchObject({
-      tier: "adapter episode boundaries",
+      tier: "annotated stages",
       stages: [{ key: "opening" }, { key: "stage:work" }, { key: "stage:outcome" }],
     });
     expect(stagesFor({ trajectory: { id: "plain" }, events: anchored.events.map(({ alignment_key: _alignment, ...event }) => event) })).toMatchObject({
       tier: "outcome only",
       stages: [{ key: "outcome" }],
     });
+  });
+
+  it("labels adapter-declared episode boundaries separately", () => {
+	const side: ComparisonSide = { trajectory: { id: "episodes" }, events: [
+	  { id: "start", sequence: 0, kind: "message", alignment_key: "episode:setup" },
+	  { id: "work", sequence: 1, kind: "tool", alignment_key: "episode:work" },
+	] };
+	expect(stagesFor(side).tier).toBe("adapter episodes");
+  });
+
+  it("compares within-stage behavioral outcomes as order-insensitive multisets", () => {
+	const left = { key: "stage:work", label: "work", events: [
+	  { id: "a", sequence: 1, kind: "tool", alignment_key: "tool:a", output: { ok: true } },
+	  { id: "b", sequence: 2, kind: "tool", alignment_key: "tool:b", output: { ok: false } },
+	] };
+	const permuted = { ...left, events: [left.events[1], left.events[0]] };
+	const changed = { ...left, events: [left.events[1], { ...left.events[0], output: { ok: false } }] };
+	expect(stageChanged(left, permuted)).toBe(false);
+	expect(stageChanged(left, changed)).toBe(true);
   });
 });

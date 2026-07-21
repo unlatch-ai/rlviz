@@ -5,13 +5,15 @@
 package tea
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-
-	"github.com/mattn/go-isatty"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 )
 
 type Msg any
@@ -87,12 +89,12 @@ func NewProgram(model Model, options ...ProgramOption) *Program {
 }
 
 func (program *Program) Run() (Model, error) {
-	terminal := false
+	terminal, initialWidth, initialHeight := false, 0, 0
 	if file, ok := program.input.(*os.File); ok {
-		terminal = isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd())
+		initialWidth, initialHeight, terminal = terminalSize(file)
 	}
 	if terminal {
-		command := exec.Command("stty", "raw", "-echo")
+		command := exec.Command("stty", "raw", "opost", "-echo")
 		command.Stdin = program.input
 		_ = command.Run()
 		defer func() { restore := exec.Command("stty", "sane"); restore.Stdin = program.input; _ = restore.Run() }()
@@ -104,25 +106,70 @@ func (program *Program) Run() (Model, error) {
 	if command := program.model.Init(); command != nil {
 		program.model, _ = program.model.Update(command())
 	}
+	var resize <-chan os.Signal
+	if terminal {
+		program.model, _ = program.model.Update(WindowSizeMsg{Width: initialWidth, Height: initialHeight})
+		resizes := make(chan os.Signal, 1)
+		signal.Notify(resizes, syscall.SIGWINCH)
+		defer signal.Stop(resizes)
+		resize = resizes
+	}
 	program.render(terminal)
-	reader := bufio.NewReader(program.input)
-	for {
-		key, err := readKey(reader)
-		if err == io.EOF {
-			return program.model, nil
-		}
-		if err != nil {
-			return program.model, err
-		}
-		next, command := program.model.Update(key)
-		program.model = next
-		if command != nil {
-			if _, ok := command().(quitMsg); ok {
-				return program.model, nil
+	reader := newKeyReader(program.input)
+	type keyResult struct {
+		key KeyMsg
+		err error
+	}
+	keys := make(chan keyResult)
+	go func() {
+		for {
+			key, err := reader.readKey()
+			keys <- keyResult{key: key, err: err}
+			if err != nil {
+				return
 			}
 		}
-		program.render(terminal)
+	}()
+	for {
+		select {
+		case result := <-keys:
+			if result.err == io.EOF {
+				return program.model, nil
+			}
+			if result.err != nil {
+				return program.model, result.err
+			}
+			next, command := program.model.Update(result.key)
+			program.model = next
+			if command != nil {
+				if _, ok := command().(quitMsg); ok {
+					return program.model, nil
+				}
+			}
+			program.render(terminal)
+		case <-resize:
+			if width, height, ok := terminalSize(program.input); ok {
+				program.model, _ = program.model.Update(WindowSizeMsg{Width: width, Height: height})
+				program.render(terminal)
+			}
+		}
 	}
+}
+
+func terminalSize(input io.Reader) (int, int, bool) {
+	command := exec.Command("stty", "size")
+	command.Stdin = input
+	output, err := command.Output()
+	if err != nil {
+		return 0, 0, false
+	}
+	fields := strings.Fields(string(output))
+	if len(fields) != 2 {
+		return 0, 0, false
+	}
+	height, heightErr := strconv.Atoi(fields[0])
+	width, widthErr := strconv.Atoi(fields[1])
+	return width, height, heightErr == nil && widthErr == nil && width > 0 && height > 0
 }
 
 func (program *Program) render(terminal bool) {
@@ -135,8 +182,61 @@ func (program *Program) render(terminal bool) {
 	}
 }
 
-func readKey(reader *bufio.Reader) (KeyMsg, error) {
-	value, err := reader.ReadByte()
+type inputByte struct {
+	value byte
+	err   error
+}
+
+type keyReader struct {
+	input   <-chan inputByte
+	pending []byte
+}
+
+func newKeyReader(input io.Reader) *keyReader {
+	bytes := make(chan inputByte, 64)
+	go func() {
+		defer close(bytes)
+		buffer := make([]byte, 64)
+		for {
+			count, err := input.Read(buffer)
+			for _, value := range buffer[:count] {
+				bytes <- inputByte{value: value}
+			}
+			if err != nil {
+				bytes <- inputByte{err: err}
+				return
+			}
+		}
+	}()
+	return &keyReader{input: bytes}
+}
+
+func (reader *keyReader) nextByte(wait time.Duration) (byte, error, bool) {
+	if len(reader.pending) > 0 {
+		value := reader.pending[0]
+		reader.pending = reader.pending[1:]
+		return value, nil, true
+	}
+	if wait <= 0 {
+		item, ok := <-reader.input
+		if !ok {
+			return 0, io.EOF, true
+		}
+		return item.value, item.err, true
+	}
+	select {
+	case item, ok := <-reader.input:
+		if !ok {
+			return 0, io.EOF, true
+		}
+		return item.value, item.err, true
+	case <-time.After(wait):
+		return 0, nil, false
+	}
+}
+
+func (reader *keyReader) readKey() (KeyMsg, error) {
+	value, err, _ := reader.nextByte(0)
 	if err != nil {
 		return KeyMsg{}, err
 	}
@@ -146,17 +246,31 @@ func readKey(reader *bufio.Reader) (KeyMsg, error) {
 	case '\r', '\n':
 		return KeyMsg{Type: KeyEnter}, nil
 	case 27:
-		if reader.Buffered() >= 2 {
-			second, _ := reader.ReadByte()
-			third, _ := reader.ReadByte()
-			if second == '[' && third == 'A' {
-				return KeyMsg{Type: KeyUp}, nil
+		second, secondErr, ok := reader.nextByte(25 * time.Millisecond)
+		if secondErr != nil || !ok {
+			return KeyMsg{Type: KeyEsc}, nil
+		}
+		if second != '[' {
+			reader.pending = append([]byte{second}, reader.pending...)
+			return KeyMsg{Type: KeyEsc}, nil
+		}
+		for count := 0; count < 32; count++ {
+			part, partErr, available := reader.nextByte(25 * time.Millisecond)
+			if partErr != nil || !available {
+				return reader.readKey()
 			}
-			if second == '[' && third == 'B' {
-				return KeyMsg{Type: KeyDown}, nil
+			if part >= 0x40 && part <= 0x7e {
+				switch part {
+				case 'A':
+					return KeyMsg{Type: KeyUp}, nil
+				case 'B':
+					return KeyMsg{Type: KeyDown}, nil
+				default:
+					return reader.readKey()
+				}
 			}
 		}
-		return KeyMsg{Type: KeyEsc}, nil
+		return reader.readKey()
 	default:
 		return KeyMsg{Type: KeyRunes, Runes: []rune{rune(value)}}, nil
 	}

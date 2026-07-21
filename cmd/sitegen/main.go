@@ -244,9 +244,30 @@ var codePattern = regexp.MustCompile("`([^`]+)`")
 
 func inline(value string) string {
 	escaped := html.EscapeString(value)
-	escaped = linkPattern.ReplaceAllString(escaped, `<a href="$2">$1</a>`)
+	escaped = linkPattern.ReplaceAllStringFunc(escaped, func(match string) string {
+		parts := linkPattern.FindStringSubmatch(match)
+		if len(parts) != 3 || !allowedHref(html.UnescapeString(parts[2])) {
+			return `<a>` + parts[1] + `</a>`
+		}
+		return `<a href="` + parts[2] + `">` + parts[1] + `</a>`
+	})
 	escaped = codePattern.ReplaceAllString(escaped, `<code>$1</code>`)
 	return escaped
+}
+
+func allowedHref(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	lower := strings.ToLower(trimmed)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(lower, "http:") || strings.HasPrefix(lower, "https:") || strings.HasPrefix(lower, "mailto:") {
+		return true
+	}
+	if strings.HasPrefix(trimmed, "//") {
+		return false
+	}
+	return !regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*:`).MatchString(trimmed)
 }
 
 func slug(value string) string {

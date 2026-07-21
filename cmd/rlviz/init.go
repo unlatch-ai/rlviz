@@ -192,7 +192,11 @@ func initAgentFile(agent, homeOverride string) (string, string, error) {
 	case "claude-code":
 		return filepath.Join(home, ".claude", "skills", "rlviz", "SKILL.md"), skillDocument(setup.Content), nil
 	case "cursor":
-		return filepath.Join(".cursor", "rules", "rlviz.mdc"), setup.Content, nil
+		destination, err := filepath.Abs(filepath.Join(".cursor", "rules", "rlviz.mdc"))
+		if err != nil {
+			return "", "", fmt.Errorf("resolve project-local Cursor rule: %w", err)
+		}
+		return destination, setup.Content, nil
 	default:
 		return "", "", fmt.Errorf("unsupported agent %q", agent)
 	}

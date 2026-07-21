@@ -545,6 +545,7 @@ func (i *Index) GroupSummariesPage(ctx context.Context, sourceID, groupID string
 	    signal_summary AS (SELECT source_id,trajectory_id,COUNT(*) count FROM signals WHERE source_id=? GROUP BY source_id,trajectory_id),
 	    artifact_summary AS (SELECT source_id,trajectory_id,COUNT(*) count FROM artifacts WHERE source_id=? GROUP BY source_id,trajectory_id)
     SELECT t.id,t.raw,t.line,t.byte_offset,t.byte_length,
+	  COALESCE(json_extract(r.raw,'$.name'),''),COALESCE(json_extract(c.raw,'$.name'),''),COALESCE(json_extract(g.raw,'$.name'),''),
       COALESCE(e.count,0),e.first_sequence,e.last_sequence,COALESCE(e.error_count,0),
       COALESCE(ss.count,0),COALESCE(a.count,0),s.name,s.raw,s.line
     FROM trajectories t
@@ -552,6 +553,9 @@ func (i *Index) GroupSummariesPage(ctx context.Context, sourceID, groupID string
     LEFT JOIN signal_summary ss ON ss.source_id=t.source_id AND ss.trajectory_id=t.id
     LEFT JOIN artifact_summary a ON a.source_id=t.source_id AND a.trajectory_id=t.id
     LEFT JOIN signals s ON s.source_id=t.source_id AND s.trajectory_id=t.id
+	JOIN groups g ON g.source_id=t.source_id AND g.id=t.group_id
+	JOIN cases c ON c.source_id=g.source_id AND c.id=g.case_id
+	JOIN runs r ON r.source_id=c.source_id AND r.id=c.run_id
 	    WHERE t.rowid IN (SELECT rowid FROM trajectories WHERE source_id=? AND group_id=? ORDER BY line LIMIT ?)
 	      AND t.source_id=? AND t.group_id=? ORDER BY t.line,s.line`, sourceID, sourceID, sourceID, sourceID, groupID, limit, sourceID, groupID)
 	if err != nil {
@@ -569,6 +573,7 @@ func (i *Index) GroupSummariesPage(ctx context.Context, sourceID, groupID string
 		var first, last sql.NullInt64
 		var item TrajectorySummary
 		if err := rows.Scan(&trajectoryID, &raw, &item.Trajectory.Line, &item.Trajectory.ByteOffset, &item.Trajectory.ByteLength,
+			&item.RunName, &item.CaseName, &item.GroupName,
 			&item.EventCount, &first, &last, &item.ErrorCount, &item.SignalCount, &item.ArtifactCount, &signalName, &signalRaw, &signalLine); err != nil {
 			return page, err
 		}

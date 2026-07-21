@@ -14,3 +14,5 @@
 - Add validated light, dark, and high-contrast palette support.
 - Add the static documentation site at [rlviz.dev](https://rlviz.dev), deployed
   through Vercel.
+- Known limitation: Read depth currently changes navigation state only; distinct
+  per-depth representations remain future work.

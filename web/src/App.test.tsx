@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { sampleTrajectory } from "./sample";
@@ -69,12 +70,39 @@ describe("instrument viewer", () => {
     await openRead();
     const strip = screen.getByRole("region", { name: "Trajectory shape" });
     const initial = strip.getAttribute("data-selected-x");
+	const initialVisible = Number(strip.getAttribute("data-visible-events"));
     fireEvent.keyDown(window, { key: "+" });
     expect(strip).toHaveAttribute("data-selected-x", initial!);
+	expect(Number(strip.getAttribute("data-visible-events"))).toBeLessThan(initialVisible);
     fireEvent.keyDown(window, { key: "-" });
     expect(strip).toHaveAttribute("data-selected-x", initial!);
     fireEvent.keyDown(window, { key: "0" });
     expect(strip).toHaveAttribute("data-selected-x", initial!);
+  });
+
+  it("ascends one read depth at a time before returning to Browse", async () => {
+	await openRead();
+	fireEvent.keyDown(window, { key: "Enter" });
+	fireEvent.keyDown(window, { key: "Enter" });
+	expect(screen.getByText(/depth 3\/3/)).toBeInTheDocument();
+	fireEvent.keyDown(window, { key: "Escape" });
+	expect(screen.getByText(/depth 2\/3/)).toBeInTheDocument();
+	fireEvent.keyDown(window, { key: "Escape" });
+	expect(screen.getByText(/depth 1\/3/)).toBeInTheDocument();
+	fireEvent.keyDown(window, { key: "Escape" });
+	expect(screen.getByRole("main", { name: "Browse trajectories" })).toBeInTheDocument();
+  });
+
+  it("pans a zoomed axis when a landmark jump leaves the window", async () => {
+	await openRead();
+	fireEvent.keyDown(window, { key: "+" });
+	fireEvent.keyDown(window, { key: "r" });
+	const strip = screen.getByRole("region", { name: "Trajectory shape" });
+	await waitFor(() => {
+	  const x = Number(strip.getAttribute("data-selected-x"));
+	  expect(x).toBeGreaterThanOrEqual(20);
+	  expect(x).toBeLessThanOrEqual(980);
+	});
   });
 
   it("jumps to reward and context landmarks", async () => {
@@ -125,5 +153,36 @@ describe("instrument viewer", () => {
     render(<App />);
     expect(await screen.findByRole("status")).toHaveTextContent("Palette ignored");
     expect(screen.getByRole("main", { name: "Browse trajectories" })).toBeInTheDocument();
+  });
+
+  it("does not let a slow boot replace an already-open Read session", async () => {
+	let resolveTrajectory!: (value: Response) => void;
+	let resolveBrowse!: (value: Response) => void;
+	vi.stubGlobal("fetch", vi.fn((request: RequestInfo | URL) => new Promise<Response>((resolve) => {
+	  if (String(request).includes("/indexed/browse")) resolveBrowse = resolve;
+	  else resolveTrajectory = resolve;
+	})));
+	render(<App />);
+	fireEvent.keyDown(window, { key: "Enter" });
+	expect(await screen.findByRole("main", { name: "Read trajectory" })).toHaveTextContent(sampleTrajectory.id);
+	resolveTrajectory(new Response(JSON.stringify({ trajectory: { id: "late" }, events: [{ id: "late-event", sequence: 0, kind: "message" }] })));
+	resolveBrowse(new Response(JSON.stringify({ sources: [], trajectories: [], count: 0 })));
+	await waitFor(() => expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent(sampleTrajectory.id));
+	expect(screen.queryByText("late")).not.toBeInTheDocument();
+  });
+
+  it("ignores AbortError from a superseded StrictMode boot", async () => {
+	let calls = 0;
+	vi.stubGlobal("fetch", vi.fn((request: RequestInfo | URL, init?: RequestInit) => {
+	  calls++;
+	  if (calls <= 2) return new Promise<Response>((_resolve, reject) => {
+		init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+	  });
+	  if (String(request).includes("/indexed/browse")) return Promise.resolve(new Response(JSON.stringify({ sources: [], trajectories: [], count: 0 })));
+	  return Promise.resolve(new Response(JSON.stringify({ trajectory: { id: "fresh" }, events: [{ id: "event", sequence: 0, kind: "message" }] })));
+	}));
+	render(<StrictMode><App /></StrictMode>);
+	await waitFor(() => expect(calls).toBeGreaterThanOrEqual(4));
+	expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	rolloutindex "github.com/TheSnakeFang/rlviz/internal/index"
@@ -187,13 +188,22 @@ func glyph(kind string) string {
 func title(event *model.Event) string {
 	if event.Metadata != nil {
 		if value, ok := event.Metadata["title"].(string); ok && value != "" {
-			return value
+			return printableText(value)
 		}
 	}
 	if event.AlignmentKey != "" {
-		return event.AlignmentKey
+		return printableText(event.AlignmentKey)
 	}
-	return strings.ReplaceAll(event.Kind, "_", " ")
+	return printableText(strings.ReplaceAll(event.Kind, "_", " "))
+}
+
+func printableText(value string) string {
+	return strings.Map(func(character rune) rune {
+		if unicode.IsPrint(character) {
+			return character
+		}
+		return -1
+	}, value)
 }
 
 func colorize(enabled bool, code, value string) string {
@@ -286,7 +296,7 @@ func (model Model) browseView() string {
 			verdict = "✕"
 		}
 		strip := caterpillar(row.Events, model.fidelity, 26, model.color)
-		line := fmt.Sprintf("%s%s %-22s %-26s %3d", cursor, verdict, row.Summary.Trajectory.Value.ID, strip, len(row.Events))
+		line := fmt.Sprintf("%s%s %-22s %-26s %3d", cursor, verdict, printableText(row.Summary.Trajectory.Value.ID), strip, len(row.Events))
 		if verdict != " " {
 			line = strings.Replace(line, cursor+verdict, cursor+colorize(model.color, rowFailureColor(row), verdict), 1)
 		}
@@ -324,7 +334,7 @@ func (model Model) readView() string {
 	}
 	current := events[model.event]
 	episodes, retries, compactions := trajectoryShape(events)
-	lines := []string{truncate(fmt.Sprintf("RLViz  Read  %s", row.Summary.Trajectory.Value.ID), model.width), truncate(fmt.Sprintf("%s · %s · event %d/%d · depth %d/3", row.Case, row.Summary.Trajectory.Value.Termination, model.event+1, len(events), model.depth), model.width), truncate("episodes: "+strings.Join(episodes, " → "), model.width), truncate(fmt.Sprintf("shape: %d errors/retries · %d compaction(s)", retries, compactions), model.width), strings.Repeat("─", min(model.width, 80)), truncate(caterpillar(events, max(3, model.fidelity), model.width-2, model.color), model.width), strings.Repeat("─", min(model.width, 80))}
+	lines := []string{truncate(fmt.Sprintf("RLViz  Read  %s", printableText(row.Summary.Trajectory.Value.ID)), model.width), truncate(fmt.Sprintf("%s · %s · event %d/%d · depth %d/3", printableText(row.Case), printableText(row.Summary.Trajectory.Value.Termination), model.event+1, len(events), model.depth), model.width), truncate("episodes: "+strings.Join(episodes, " → "), model.width), truncate(fmt.Sprintf("shape: %d errors/retries · %d compaction(s)", retries, compactions), model.width), strings.Repeat("─", min(model.width, 80)), truncate(caterpillar(events, max(3, model.fidelity), model.width-2, model.color), model.width), strings.Repeat("─", min(model.width, 80))}
 	available := max(3, model.height-10)
 	start := max(0, min(model.event-available/2, len(events)-available))
 	for index := start; index < min(len(events), start+available); index++ {
@@ -333,7 +343,7 @@ func (model Model) readView() string {
 			cursor = "> "
 		}
 		mark := glyph(events[index].Kind)
-		line := truncate(fmt.Sprintf("%s%4d %s %-12s %s", cursor, events[index].Sequence, mark, events[index].Kind, title(events[index])), model.width)
+		line := truncate(fmt.Sprintf("%s%4d %s %-12s %s", cursor, events[index].Sequence, mark, printableText(events[index].Kind), title(events[index])), model.width)
 		line = strings.Replace(line, " "+mark+" ", " "+colorize(model.color, eventColor(events[index]), mark)+" ", 1)
 		lines = append(lines, line)
 	}
@@ -350,7 +360,7 @@ func trajectoryShape(events []*model.Event) ([]string, int, int) {
 	retries, compactions := 0, 0
 	for _, event := range events {
 		if strings.HasPrefix(event.AlignmentKey, "episode:") {
-			name := strings.TrimPrefix(event.AlignmentKey, "episode:")
+			name := printableText(strings.TrimPrefix(event.AlignmentKey, "episode:"))
 			if name != "" && !seen[name] {
 				seen[name] = true
 				episodes = append(episodes, name)

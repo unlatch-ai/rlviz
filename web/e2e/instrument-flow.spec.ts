@@ -90,10 +90,14 @@ test("Browse to Read to Compare preserves the instrument invariants", async ({ p
 
   const strip = page.getByRole("region", { name: "Trajectory shape" });
   const anchor = await strip.getAttribute("data-selected-x");
-  for (const key of ["+", "-", "0"]) {
-    await page.keyboard.press(key);
-    await expect(strip).toHaveAttribute("data-selected-x", anchor!);
-  }
+	const initialVisible = Number(await strip.getAttribute("data-visible-events"));
+	await page.keyboard.press("+");
+	await expect(strip).toHaveAttribute("data-selected-x", anchor!);
+	expect(Number(await strip.getAttribute("data-visible-events"))).toBeLessThan(initialVisible);
+	for (const key of ["-", "0"]) {
+	  await page.keyboard.press(key);
+	  await expect(strip).toHaveAttribute("data-selected-x", anchor!);
+	}
   await page.keyboard.press("c");
   await expect(page.locator(".moment.selected b")).toHaveText("Context compacted");
   await page.keyboard.press("r");

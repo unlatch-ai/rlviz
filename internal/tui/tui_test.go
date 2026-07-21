@@ -95,6 +95,29 @@ func TestNOColorDisablesANSI(t *testing.T) {
 	}
 }
 
+func TestTraceControlsCannotReachTerminalOutput(t *testing.T) {
+	hostile := "\x1b]52;c;payload\x07"
+	viewer := New([]Row{{
+		Case: hostile + "case",
+		Summary: rolloutindex.TrajectorySummary{Trajectory: rolloutindex.IndexedRecord[*model.Trajectory]{Value: &model.Trajectory{
+			ID: hostile + "trajectory", Termination: hostile + "terminated",
+		}}},
+		Events: []*model.Event{{ID: "event", Kind: "error", AlignmentKey: "episode:" + hostile, Metadata: model.Metadata{"title": hostile + "title"}}},
+	}})
+	viewer.color = false
+	for _, view := range []string{viewer.View(), func() string {
+		updated, _ := viewer.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		return updated.(Model).View()
+	}()} {
+		if strings.ContainsRune(view, '\x1b') {
+			t.Fatalf("rendered trace contains ESC: %q", view)
+		}
+		if strings.ContainsAny(view, "\x07") {
+			t.Fatalf("rendered trace contains a control byte: %q", view)
+		}
+	}
+}
+
 func TestGalleryBrowseReadLandmarkAndFidelityFlow(t *testing.T) {
 	store, err := rolloutindex.Open(filepath.Join(t.TempDir(), "tui.sqlite"))
 	if err != nil {

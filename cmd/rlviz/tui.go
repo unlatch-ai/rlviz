@@ -35,6 +35,20 @@ func runTUI(sourcePath, adapterPath string) error {
 	if len(rows) == 0 {
 		return fmt.Errorf("indexed source %q contains no trajectories", indexed.Info.ID)
 	}
+	rows = rowsForSource(rows, indexed.Info.ID)
+	if len(rows) == 0 {
+		return fmt.Errorf("indexed source %q contains no trajectories", indexed.Info.ID)
+	}
 	_, err = tea.NewProgram(viewerTUI.New(rows), tea.WithAltScreen()).Run()
 	return err
+}
+
+func rowsForSource(rows []viewerTUI.Row, sourceID string) []viewerTUI.Row {
+	filtered := make([]viewerTUI.Row, 0, len(rows))
+	for _, row := range rows {
+		if row.SourceID == sourceID {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
 }

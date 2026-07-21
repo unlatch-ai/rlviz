@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/TheSnakeFang/rlviz/internal/app"
@@ -206,8 +208,23 @@ func runServe(arguments []string) {
 			fmt.Fprintf(os.Stderr, "open browser: %v\n", err)
 		}
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		<-ctx.Done()
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := viewer.Shutdown(shutdownContext); err != nil {
+			fmt.Fprintf(os.Stderr, "graceful shutdown: %v\n", err)
+		}
+	}()
 	if err := viewer.Serve(); err != nil {
 		fatalError("serve", *jsonOutput, err)
+	}
+	if ctx.Err() != nil {
+		<-shutdownDone
 	}
 }
 

@@ -19,7 +19,8 @@ const TOKEN_STORAGE_KEY = "rlviz.daemon-token";
 export function daemonToken(hash = globalThis.location?.hash ?? ""): string | null {
   const fromHash = new URLSearchParams(hash.replace(/^#/, "")).get("token");
   // Persist per-origin so reloads and hash-less navigation keep working; the
-  // origin includes the daemon port, so a token never leaks across daemons.
+  // origin includes the daemon port. Ports can be recycled, so failed auth
+  // clears a token that may belong to an earlier daemon on the same origin.
   if (fromHash) {
     try { globalThis.localStorage?.setItem(TOKEN_STORAGE_KEY, fromHash); } catch { /* storage unavailable */ }
     return fromHash;
@@ -36,6 +37,10 @@ function requestHeaders(): Record<string, string> {
   const token = daemonToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
+}
+
+function clearTokenOnAuthFailure(response: Response): void {
+  if (response.status === 401 || response.status === 403) clearStoredDaemonToken();
 }
 
 function normalizeEvent(event: TrajectoryEvent): TrajectoryEvent {
@@ -84,6 +89,7 @@ export function normalizeTrajectoryResponse(payload: TrajectoryResponse): Trajec
 export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> {
   try {
     const response = await fetch(trajectoryEndpoint(), { signal, headers: requestHeaders() });
+    clearTokenOnAuthFailure(response);
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
     const trajectory = normalizeTrajectoryResponse(payload);
@@ -97,11 +103,13 @@ export async function loadTrajectory(signal?: AbortSignal): Promise<LoadResult> 
 
 export async function loadBrowse(signal?: AbortSignal): Promise<BrowseResponse> {
   let response = await fetch("/api/v1/indexed/browse", { signal, headers: requestHeaders() });
+  clearTokenOnAuthFailure(response);
   if (response.status === 401) {
     // A stored token can go stale when the daemon restarts; drop it and retry
     // once with whatever the URL hash carries before reporting.
     clearStoredDaemonToken();
     response = await fetch("/api/v1/indexed/browse", { signal, headers: requestHeaders() });
+    clearTokenOnAuthFailure(response);
   }
   if (response.status === 401) throw new Error("Not authorized: this tab has no valid daemon token. Re-open the viewer with `rlviz open` or `rlviz demo` — the printed URL carries the token.");
   if (!response.ok) throw new Error(`Browse API returned ${response.status}`);
@@ -113,6 +121,7 @@ export async function loadBrowse(signal?: AbortSignal): Promise<BrowseResponse> 
 export async function loadIndexedTrajectory(sourceId: string, trajectoryId: string, signal?: AbortSignal): Promise<LoadResult> {
   const params = new URLSearchParams({ trajectory: sourceId, trajectory_id: trajectoryId, limit: "200" });
   const response = await fetch(`/api/v1/indexed/trajectory?${params}`, { signal, headers: requestHeaders() });
+  clearTokenOnAuthFailure(response);
   if (!response.ok) throw new Error(`Trajectory API returned ${response.status}`);
   const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
   const trajectory = normalizeTrajectoryResponse(payload);

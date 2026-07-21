@@ -34,8 +34,22 @@ func TestInitWizardInteractiveWritesPreferenceAndConfirmedSkill(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".cursor", "rules", "rlviz.mdc")); !os.IsNotExist(err) {
 		t.Fatalf("cursor file should be skipped: %v", err)
 	}
-	if !strings.Contains(output.String(), skillPath) || !strings.Contains(output.String(), "rlviz inspect <SOURCE>") || !strings.Contains(output.String(), "rlviz plugin trust") {
+	cursorPath := filepath.Join(root, ".cursor", "rules", "rlviz.mdc")
+	if !strings.Contains(output.String(), skillPath) || !strings.Contains(output.String(), cursorPath) || !strings.Contains(output.String(), "rlviz inspect <SOURCE>") || !strings.Contains(output.String(), "rlviz plugin trust") {
 		t.Fatalf("wizard output missing preview or prompt:\n%s", output.String())
+	}
+}
+
+func TestCursorRuleDestinationIsAbsoluteAndProjectLocal(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	destination, _, err := initAgentFile("cursor", filepath.Join(root, "home"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(root, ".cursor", "rules", "rlviz.mdc")
+	if destination != want || !filepath.IsAbs(destination) {
+		t.Fatalf("cursor destination = %q, want absolute %q", destination, want)
 	}
 }
 

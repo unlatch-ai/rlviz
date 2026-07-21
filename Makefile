@@ -21,6 +21,7 @@ site:
 
 test:
 	go test ./...
+	cd third_party/bubbletea && go test ./...
 	npm --prefix web test
 	npm --prefix packages/npm test
 	./scripts/install_test.sh
@@ -41,6 +42,7 @@ lint:
 
 check: lint
 	go test ./...
+	cd third_party/bubbletea && go test ./...
 	npm --prefix web test
 	npm --prefix packages/npm test
 	npm --prefix web run build

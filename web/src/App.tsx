@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { loadAnalysis, loadBrowse, loadComparison, loadIndexedTrajectory, loadTrajectory } from "./api";
 import { bindingLabel, commandIds, commands, useCommands, useKeymapRevision } from "./commands";
-import { attentionScore, axisX, firstAnomaly, glyphForKind, stagesFor, stageChanged, verdictGlyph, zoomWindow } from "./instrument";
+import { attentionScore, axisX, firstAnomaly, glyphForKind, panWindowToInclude, stagesFor, stageChanged, verdictGlyph, zoomWindow } from "./instrument";
 import type { Stage } from "./instrument";
 import type { AnalysisResponse, BrowseResponse, BrowseTrajectory, ComparisonResponse, Trajectory, TrajectoryEvent } from "./types";
 import { preview, title } from "./format";
@@ -38,6 +38,10 @@ function useReadingSurfaceFocus(root: RefObject<HTMLElement | null>, restoreKey:
 function metric(row: BrowseTrajectory, name: string): unknown {
   const metrics = row.metrics.metrics ?? row.metrics.normalized_metrics ?? row.metrics;
   return metrics[name] ?? row.metrics[name];
+}
+
+function rowKey(row: BrowseTrajectory): string {
+	return `${row.source_id}:${row.trajectory.id}`;
 }
 
 function isInfrastructureFailure(row: BrowseTrajectory): boolean {
@@ -143,7 +147,7 @@ function ShapeStrip({ trajectory, selected, hover, axis, onSelect, onHover }: {
   const rewardMin = Math.min(0, ...rewards.map((point) => point.value)), rewardMax = Math.max(1, ...rewards.map((point) => point.value));
   const path = rewards.map((point, index) => `${index ? "L" : "M"}${point.x},${182 - ((point.value - rewardMin) / Math.max(1, rewardMax - rewardMin)) * 26}`).join(" ");
   const selectedX = x(events[selected]?.sequence ?? min);
-  return <section className="shape-strip" aria-label="Trajectory shape" data-selected-x={selectedX.toFixed(4)}>
+  return <section className="shape-strip" aria-label="Trajectory shape" data-selected-x={selectedX.toFixed(4)} data-visible-events={visible.length}>
     <svg viewBox="0 0 1000 200" preserveAspectRatio="none" onMouseLeave={() => onHover(undefined)} onMouseMove={(pointer) => {
       const rect = pointer.currentTarget.getBoundingClientRect();
       const px = ((pointer.clientX - rect.left) / rect.width) * 1000;
@@ -155,11 +159,11 @@ function ShapeStrip({ trajectory, selected, hover, axis, onSelect, onHover }: {
       <text className="lane-label" x="20" y="61">events</text>
       {visible.map(({ event, index }) => {
         const px = x(event.sequence);
-        if (event.kind === "error") return <path data-event-index={index} key={event.id} className="event-shape error" d={`M${px - 5},105 L${px},88 L${px + 5},105 Z`} />;
-        if (event.kind === "tool" || event.kind === "environment_action") return <rect data-event-index={index} key={event.id} className="event-shape tool" x={px - 2} y="75" width="4" height="30" />;
-        if (event.kind === "reward" || event.kind === "grader") return <circle data-event-index={index} key={event.id} className="event-shape evidence" cx={px} cy="84" r="5" />;
-        if (event.context || event.alignment_key?.startsWith("context:")) return <path data-event-index={index} key={event.id} className="event-shape context" d={`M${px},68 l6,8 -6,8 -6,-8 Z`} />;
-        return <line data-event-index={index} key={event.id} className="event-shape nominal" x1={px} x2={px} y1="94" y2="105" />;
+        if (event.kind === "error") return <path data-event-index={index} data-event-x={px.toFixed(4)} key={event.id} className="event-shape error" d={`M${px - 5},105 L${px},88 L${px + 5},105 Z`} />;
+        if (event.kind === "tool" || event.kind === "environment_action") return <rect data-event-index={index} data-event-x={px.toFixed(4)} key={event.id} className="event-shape tool" x={px - 2} y="75" width="4" height="30" />;
+        if (event.kind === "reward" || event.kind === "grader") return <circle data-event-index={index} data-event-x={px.toFixed(4)} key={event.id} className="event-shape evidence" cx={px} cy="84" r="5" />;
+        if (event.context || event.alignment_key?.startsWith("context:")) return <path data-event-index={index} data-event-x={px.toFixed(4)} key={event.id} className="event-shape context" d={`M${px},68 l6,8 -6,8 -6,-8 Z`} />;
+        return <line data-event-index={index} data-event-x={px.toFixed(4)} key={event.id} className="event-shape nominal" x1={px} x2={px} y1="94" y2="105" />;
       })}
       <text className="lane-label" x="20" y="123">context</text>
       {visible.map(({ event }) => event.context?.input_tokens !== undefined && event.context.capacity ? <rect key={`ctx:${event.id}`} className="context-pressure" x={x(event.sequence) - 2} y={153 - 25 * event.context.input_tokens / event.context.capacity} width="4" height={25 * event.context.input_tokens / event.context.capacity} /> : null)}
@@ -194,12 +198,19 @@ function Read({ trajectory, analysis, queueIndex, queueTotal, selected, fidelity
   const events = trajectory.events;
   const current = events[selected];
   const min = events[0]?.sequence ?? 0, max = events.at(-1)?.sequence ?? min + 1;
+	const previousSequence = useRef(current.sequence);
   const move = (delta: number) => onSelected(Math.max(0, Math.min(events.length - 1, selected + delta)));
   const jump = (predicate: (event: TrajectoryEvent) => boolean) => {
     const next = events.findIndex((event, index) => index > selected && predicate(event));
     const wrapped = events.findIndex(predicate);
     if (next >= 0 || wrapped >= 0) onSelected(next >= 0 ? next : wrapped);
   };
+  useEffect(() => {
+	if (previousSequence.current === current.sequence) return;
+	previousSequence.current = current.sequence;
+    const next = panWindowToInclude(axis, current.sequence, min, max);
+    if (next.start !== axis.start || next.end !== axis.end) onAxis(next);
+  }, [axis, current.sequence, max, min, onAxis]);
   const findingIds = new Set((analysis?.analysis.findings ?? []).flatMap((finding) => finding.event_ids ?? []));
   useCommands("trajectory", {
     [commandIds.trajectory.next]: () => move(1), [commandIds.trajectory.previous]: () => move(-1),
@@ -208,7 +219,7 @@ function Read({ trajectory, analysis, queueIndex, queueTotal, selected, fidelity
     [commandIds.trajectory.nextReward]: () => jump((event) => event.kind === "reward" || event.kind === "grader"),
     [commandIds.trajectory.nextFinding]: () => jump((event) => findingIds.has(event.id)),
     [commandIds.trajectory.nextRollout]: () => onRollout(1), [commandIds.trajectory.previousRollout]: () => onRollout(-1),
-    [commandIds.trajectory.ascend]: onBrowse,
+    [commandIds.trajectory.ascend]: () => depth > 1 ? setDepth((value) => value - 1) : onBrowse(),
     [commandIds.trajectory.toggleExpanded]: () => setDepth((value) => Math.min(3, value + 1)), [commandIds.trajectory.openGroup]: onCompare,
     [commandIds.view.fidelityUp]: () => onFidelity(1), [commandIds.view.fidelityDown]: () => onFidelity(-1),
     [commandIds.view.zoomIn]: () => onAxis(zoomWindow(axis, current.sequence, 2, min, max)),
@@ -239,7 +250,7 @@ function Compare({ comparison, help, onBack, setHelp }: { comparison: Comparison
   const root = useRef<HTMLElement>(null);
   useReadingSurfaceFocus(root, `${comparison.left.trajectory.id}:${comparison.right.trajectory.id}`);
   const left = stagesFor(comparison.left), right = stagesFor(comparison.right);
-  const tier = left.tier === "adapter episode boundaries" && right.tier === "adapter episode boundaries" ? left.tier : "outcome only";
+  const tier = left.tier === right.tier ? left.tier : "outcome only";
   const leftStages = tier === "outcome only" ? [{ key: "outcome", label: "outcome", events: comparison.left.events }] : left.stages;
   const rightStages = tier === "outcome only" ? [{ key: "outcome", label: "outcome", events: comparison.right.events }] : right.stages;
   const keys = [...new Set([...leftStages.map((stage) => stage.key), ...rightStages.map((stage) => stage.key)])];
@@ -298,6 +309,9 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
   const loading = useRef(false);
+  const activeRow = useRef("");
+  const openRequest = useRef(0);
+  const selectionRevision = useRef(0);
 
   const [bootAttempt, setBootAttempt] = useState(0);
   useEffect(() => {
@@ -305,11 +319,16 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     const controller = new AbortController();
     setError("");
     Promise.all([loadTrajectory(controller.signal), loadBrowse(controller.signal)]).then(([loaded, collection]) => {
-      setTrajectory(loaded.trajectory); setPresentation(loaded.presentation); setBrowse(collection);
+	  setBrowse(collection);
+	  if (activeRow.current) return;
+	  setTrajectory(loaded.trajectory); setPresentation(loaded.presentation);
 	  const attentionOrdered = [...collection.trajectories].sort((a, b) => attentionScore(b) - attentionScore(a));
 	  const rowIndex = attentionOrdered.findIndex((row) => row.trajectory.id === loaded.trajectory.id);
       setBrowseIndex(Math.max(0, rowIndex));
-    }).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load viewer"));
+    }).catch((reason) => {
+	  if (controller.signal.aborted || (reason instanceof Error && reason.name === "AbortError")) return;
+	  setError(reason instanceof Error ? reason.message : "Could not load viewer");
+	});
     return () => controller.abort();
   }, [initialTrajectory, bootAttempt]);
 
@@ -334,17 +353,27 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
 
   const openRow = async (row = selectedRow) => {
     if (!row || loading.current) return;
+    const rowID = rowKey(row);
+    const requestID = ++openRequest.current;
+    activeRow.current = rowID;
     loading.current = true; setError("");
     try {
       const loaded = row.source_id === "sample" ? { trajectory, isSample: true, presentation: undefined } : await loadIndexedTrajectory(row.source_id, row.trajectory.id);
+	  if (requestID !== openRequest.current || activeRow.current !== rowID) return;
       setTrajectory(loaded.trajectory); setPresentation(loaded.presentation); setAnalysis(null);
       const anomaly = firstAnomaly(loaded.trajectory); setSelected(anomaly); setHover(undefined);
+	  const initialSelectionRevision = selectionRevision.current;
       setAxis({ start: loaded.trajectory.events[0].sequence, end: loaded.trajectory.events.at(-1)!.sequence });
       setMode("read");
       if (row.source_id !== "sample") loadAnalysis(row.source_id, row.trajectory.id).then((result) => {
-        setAnalysis(result); setSelected((current) => current === 0 ? firstAnomaly(loaded.trajectory, result) : current);
+		if (activeRow.current !== rowID || requestID !== openRequest.current) return;
+		setAnalysis(result);
+		if (selectionRevision.current === initialSelectionRevision) setSelected(firstAnomaly(loaded.trajectory, result));
       }).catch(() => undefined);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load trajectory"); }
+	} catch (reason) {
+	  if (activeRow.current === rowID && requestID === openRequest.current) activeRow.current = "";
+	  setError(reason instanceof Error ? reason.message : "Could not load trajectory");
+	}
     finally { loading.current = false; }
   };
 
@@ -365,20 +394,22 @@ export function App({ initialTrajectory }: { initialTrajectory?: Trajectory }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not compare trajectories"); }
   };
   const nextRollout = (delta: number) => {
-    const index = ordered.findIndex((row) => row.trajectory.id === trajectory.id);
-    if (index < 0 || !ordered.length) return;
-    const next = ordered[(index + delta + ordered.length) % ordered.length];
-    setBrowseIndex(Math.max(0, filtered.findIndex((row) => row.trajectory.id === next.trajectory.id)));
+	const index = filtered.findIndex((row) => rowKey(row) === activeRow.current);
+	if (index < 0 || !filtered.length) return;
+	const nextIndex = (index + delta + filtered.length) % filtered.length;
+	const next = filtered[nextIndex];
+	setBrowseIndex(nextIndex);
     void openRow(next);
   };
 
   const adjustFidelity = (delta: number) => setFidelity((value) => Math.max(0, Math.min(5, value + delta)));
+  const selectEvent = (value: number) => { selectionRevision.current++; setSelected(value); };
   return <div className="instrument-shell">
     <button className="theme-toggle" aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme}</button>
     {error && <div className="instrument-error" role="alert">{error}</div>}
     {presentation?.notices?.map((notice) => <div className="presentation-notice" role="status" key={notice}>{notice}</div>)}
     {mode === "browse" && <Browse rows={filtered} selected={boundedBrowseIndex} fidelity={fidelity} projection={projection} marks={marks} tags={tags} query={query} onSelected={setBrowseIndex} onFidelity={adjustFidelity} onProjection={setProjection} onOpen={() => void openRow()} onToggleMark={toggleMark} onCompare={() => void compareRows()} onTag={(tag) => { if (!selectedRow) return; setTags((current) => new Map(current).set(selectedRow.trajectory.id, tag)); if (boundedBrowseIndex < filtered.length - 1) setBrowseIndex(boundedBrowseIndex + 1); }} onQuery={setQuery} help={help} setHelp={setHelp} />}
-    {mode === "read" && <Read trajectory={trajectory} analysis={analysis} queueIndex={Math.max(0, ordered.findIndex((row) => row.trajectory.id === trajectory.id))} queueTotal={ordered.length} selected={selected} fidelity={fidelity} axis={axis} hover={hover} help={help} onSelected={setSelected} onFidelity={adjustFidelity} onAxis={setAxis} onHover={setHover} onBrowse={() => { setHelp(false); setMode("browse"); }} onRollout={nextRollout} onCompare={() => void compareRows()} setHelp={setHelp} />}
+	{mode === "read" && <Read trajectory={trajectory} analysis={analysis} queueIndex={filtered.findIndex((row) => rowKey(row) === activeRow.current)} queueTotal={filtered.length} selected={selected} fidelity={fidelity} axis={axis} hover={hover} help={help} onSelected={selectEvent} onFidelity={adjustFidelity} onAxis={setAxis} onHover={setHover} onBrowse={() => { setHelp(false); setMode("browse"); }} onRollout={nextRollout} onCompare={() => void compareRows()} setHelp={setHelp} />}
     {mode === "compare" && comparison && <Compare comparison={comparison} help={help} onBack={() => { setHelp(false); setMode("browse"); }} setHelp={setHelp} />}
   </div>;
 }

@@ -95,17 +95,26 @@ func startViewer(config Viewer, listener net.Listener) (*RunningViewer, error) {
 }
 
 func (viewer *RunningViewer) Serve() error {
-	defer viewer.runCleanup()
 	err := viewer.Server.Serve(viewer.Listener)
 	if err != nil && err != http.ErrServerClosed {
+		viewer.runCleanup()
 		return err
+	}
+	if err == nil {
+		viewer.runCleanup()
 	}
 	return nil
 }
 
 func (viewer *RunningViewer) Shutdown(ctx context.Context) error {
-	err := viewer.Server.Shutdown(ctx)
-	viewer.runCleanup()
+	return viewer.finishShutdown(func() error { return viewer.Server.Shutdown(ctx) })
+}
+
+func (viewer *RunningViewer) finishShutdown(shutdown func() error) error {
+	err := shutdown()
+	if err == nil {
+		viewer.runCleanup()
+	}
 	return err
 }
 

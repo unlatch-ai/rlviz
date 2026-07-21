@@ -24,6 +24,17 @@ export function axisX(sequence: number, window: AxisWindow, width = 1000, inset 
   return inset + ((sequence - window.start) / span) * (width - inset * 2);
 }
 
+export function panWindowToInclude(window: AxisWindow, sequence: number, min: number, max: number, marginFraction = 0.15): AxisWindow {
+  const span = Math.max(1, window.end - window.start);
+  const margin = span * marginFraction;
+  if (sequence >= window.start + margin && sequence <= window.end - margin) return window;
+  let start = sequence < window.start + margin ? sequence - margin : sequence + margin - span;
+  let end = start + span;
+  if (start < min) { start = min; end = Math.min(max, min + span); }
+  if (end > max) { end = max; start = Math.max(min, max - span); }
+  return { start, end };
+}
+
 export function firstAnomaly(trajectory: Trajectory, analysis?: AnalysisResponse | null): number {
   const events = trajectory.events;
   const error = events.findIndex((event) => event.kind === "error");
@@ -57,20 +68,21 @@ export function verdictGlyph(row: BrowseTrajectory): string {
 }
 
 export type Stage = { key: string; label: string; events: TrajectoryEvent[] };
-function explicitStageKey(event: TrajectoryEvent): string | undefined {
+export type AlignmentTier = "adapter episodes" | "annotated stages" | "outcome only";
+
+function explicitStageKey(event: TrajectoryEvent, prefix: "episode:" | "stage:"): string | undefined {
   const key = event.alignment_key;
-  if (!key) return undefined;
-  if (key.startsWith("episode:") || key.startsWith("stage:")) return key;
-  return undefined;
+  return key?.startsWith(prefix) ? key : undefined;
 }
 
-export function stagesFor(side: ComparisonSide): { tier: "adapter episode boundaries" | "outcome only"; stages: Stage[] } {
-  const hasExplicit = side.events.some(explicitStageKey);
-  if (!hasExplicit) return { tier: "outcome only", stages: [{ key: "outcome", label: "outcome", events: side.events }] };
+export function stagesFor(side: ComparisonSide): { tier: AlignmentTier; stages: Stage[] } {
+  const prefix = side.events.some((event) => explicitStageKey(event, "episode:")) ? "episode:"
+    : side.events.some((event) => explicitStageKey(event, "stage:")) ? "stage:" : undefined;
+  if (!prefix) return { tier: "outcome only", stages: [{ key: "outcome", label: "outcome", events: side.events }] };
   const stages: Stage[] = [];
   let current: Stage = { key: "opening", label: "opening", events: [] };
   for (const event of side.events) {
-    const key = explicitStageKey(event);
+    const key = explicitStageKey(event, prefix);
     if (key && key !== current.key) {
       if (current.events.length) stages.push(current);
       current = { key, label: key.split(":").slice(1).join(":") || key, events: [] };
@@ -78,12 +90,13 @@ export function stagesFor(side: ComparisonSide): { tier: "adapter episode bounda
     current.events.push(event);
   }
   if (current.events.length) stages.push(current);
-  return { tier: "adapter episode boundaries", stages };
+  return { tier: prefix === "episode:" ? "adapter episodes" : "annotated stages", stages };
 }
 
 export function stageChanged(left?: Stage, right?: Stage): boolean {
   if (!left || !right) return true;
   const outcome = (stage: Stage) => stage.events.filter((event) => ["tool", "environment_action", "error", "reward", "grader"].includes(event.kind))
-    .map((event) => `${event.kind}:${event.alignment_key ?? ""}:${JSON.stringify(event.output ?? event.data ?? null)}`);
+    .map((event) => `${event.kind}:${event.alignment_key ?? ""}:${JSON.stringify(event.output ?? event.data ?? null)}`)
+    .sort();
   return JSON.stringify(outcome(left)) !== JSON.stringify(outcome(right));
 }

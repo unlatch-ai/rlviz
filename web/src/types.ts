@@ -258,7 +258,18 @@ export interface BrowseTrajectory {
   case_name?: string;
   group_name?: string;
   trajectory: Omit<Trajectory, "events">;
-  metrics: GroupTrajectorySummary;
+  metrics: BrowseMetrics;
+}
+
+export interface BrowseMetrics extends GroupMetrics {
+  trajectory?: GroupTrajectorySummary["trajectory"];
+  metrics?: GroupMetrics;
+  normalized_metrics?: GroupMetrics;
+  signals?: Record<string, unknown>;
+  signal_count?: number;
+  artifact_count?: number;
+  status?: string;
+  termination?: string;
 }
 
 export interface BrowseResponse {
