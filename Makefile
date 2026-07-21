@@ -15,7 +15,7 @@ wasm-check:
 	GOOS=js GOARCH=wasm go build ./internal/model ./internal/analyzers ./internal/alignment ./internal/browsercore
 	GOOS=js GOARCH=wasm go build -o build/wasm-check/rlviz-browser-core.wasm ./cmd/rlviz-wasm
 
-webapp: webapp-install
+webapp: web-install webapp-install
 	npm --prefix webapp run build
 	GOOS=js GOARCH=wasm go build -o webapp/dist/rlviz.wasm ./cmd/rlviz-wasm
 	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" webapp/dist/wasm_exec.js
