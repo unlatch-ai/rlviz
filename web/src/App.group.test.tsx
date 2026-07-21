@@ -52,6 +52,13 @@ describe("Browse Read Compare flow", () => {
     expect(screen.getByText(/first divergence/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "d" });
     expect(screen.getByRole("button", { name: /outcome/ })).toHaveClass("selected");
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(await screen.findByRole("main", { name: "Read trajectory" })).toHaveTextContent("candidate");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("main", { name: "Pair Compare" })).toHaveAttribute("data-selected-stage", "stage:outcome");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("main", { name: "Browse trajectories" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[role=option].marked")).toHaveLength(2);
   });
 
 	it("does not apply late analysis to another rollout", async () => {
@@ -132,8 +139,15 @@ describe("Browse Read Compare flow", () => {
 		fireEvent.keyDown(window, { key: "Enter" });
 		await screen.findByRole("main", { name: "Read trajectory" });
 		expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent("candidate");
+		fireEvent.keyDown(window, { key: "+" });
+		fireEvent.keyDown(window, { key: "Enter" });
+		const axisStart = screen.getByRole("main", { name: "Read trajectory" }).getAttribute("data-axis-start");
 		fireEvent.keyDown(window, { key: "n" });
-		await waitFor(() => expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent("reference"));
+		await waitFor(() => {
+			expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent("reference");
+			expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-axis-start", axisStart);
+			expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-depth", "2");
+		});
 		fireEvent.keyDown(window, { key: "p" });
 		await waitFor(() => expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent("candidate"));
 	});

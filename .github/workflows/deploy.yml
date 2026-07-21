@@ -1,0 +1,59 @@
+name: deploy static surfaces
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  fork-notice:
+    if: github.event.repository.fork
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip deployment from a fork
+        run: echo "::notice::Skipping Vercel deployment because this repository is a fork."
+
+  deploy:
+    if: ${{ !github.event.repository.fork }}
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID_DOCS: ${{ vars.VERCEL_PROJECT_ID_DOCS }}
+      VERCEL_PROJECT_ID_APP: ${{ vars.VERCEL_PROJECT_ID_APP }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${VERCEL_TOKEN:?missing required secret VERCEL_TOKEN}"
+          : "${VERCEL_ORG_ID:?missing required variable VERCEL_ORG_ID}"
+          : "${VERCEL_PROJECT_ID_DOCS:?missing required variable VERCEL_PROJECT_ID_DOCS}"
+          : "${VERCEL_PROJECT_ID_APP:?missing required variable VERCEL_PROJECT_ID_APP}"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build documentation site
+        run: make site
+      - name: Build browser app and Go WebAssembly core
+        run: make web-install webapp
+      - name: Install Vercel CLI
+        run: npm install --global vercel
+      - name: Deploy documentation
+        env:
+          VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID_DOCS }}
+        run: vercel deploy site/dist --prod --yes --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"
+      - name: Deploy browser app
+        env:
+          VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID_APP }}
+        run: vercel deploy webapp/dist --prod --yes --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"

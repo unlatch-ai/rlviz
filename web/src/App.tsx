@@ -99,6 +99,7 @@ function Browse({ rows, selected, fidelity, projection, marks, tags, query, onSe
   useReadingSurfaceFocus(root, rows.map((row) => `${row.source_id}:${row.trajectory.id}`).join("\0"));
   const move = (delta: number) => { if (rows.length) onSelected((selected + delta + rows.length) % rows.length); };
   useCommands("group", {
+    [commandIds.group.back]: () => root.current?.focus(),
     [commandIds.group.next]: () => move(1), [commandIds.group.previous]: () => move(-1),
     [commandIds.group.open]: onOpen, [commandIds.group.toggleCompare]: onToggleMark, [commandIds.group.compare]: () => marks.size === 2 ? onCompare() : false,
     [commandIds.group.search]: () => document.getElementById("browse-filter")?.focus(),
@@ -107,7 +108,7 @@ function Browse({ rows, selected, fidelity, projection, marks, tags, query, onSe
     [commandIds.view.fidelityUp]: () => onFidelity(1), [commandIds.view.fidelityDown]: () => onFidelity(-1),
     [commandIds.view.toggleHelp]: () => setHelp(!help),
   }, !help);
-  return <main ref={root} tabIndex={0} className="instrument browse-mode" aria-label="Browse trajectories">
+  return <main ref={root} tabIndex={0} className="instrument browse-mode" aria-label="Browse trajectories" data-selected-trajectory={rows[selected]?.trajectory.id ?? ""} data-fidelity={fidelityNames[fidelity]} data-filter={query}>
     <header className="instrument-head"><div><span className="eyebrow">Browse</span><h1>Known trajectories</h1><p>{rows.filter((row) => !tags.has(row.trajectory.id)).length} unresolved · attention ordered</p></div>
       <div className="browse-controls"><label>Filter <input id="browse-filter" value={query} onChange={(event) => onQuery(event.target.value)} /></label><button className={projection === "table" ? "active" : ""} onClick={() => onProjection("table")}>table</button><button className={projection === "caterpillar" ? "active" : ""} onClick={() => onProjection("caterpillar")}>caterpillars</button><button onClick={() => setHelp(true)}>?</button></div>
     </header>
@@ -230,7 +231,7 @@ function Read({ trajectory, analysis, queueIndex, queueTotal, selected, fidelity
   const around = Math.max(1, fidelity + 1);
   const detailRows = events.slice(Math.max(0, selected - around), Math.min(events.length, selected + around + 1));
   const judges = judgesFor(trajectory);
-  return <main ref={root} tabIndex={0} className="instrument read-mode" aria-label="Read trajectory">
+  return <main ref={root} tabIndex={0} className="instrument read-mode" aria-label="Read trajectory" data-trajectory={trajectory.id} data-depth={depth} data-fidelity={fidelityNames[fidelity]} data-axis-start={axis.start.toFixed(4)} data-axis-end={axis.end.toFixed(4)}>
     <header className="verdict-header"><div><span className="eyebrow">Read · {queueIndex + 1}/{queueTotal}</span><h1>{trajectory.name ?? trajectory.id}</h1><p>{trajectory.id} · ended: {trajectory.termination ?? trajectory.status ?? "recorded"}</p></div>
       <div className="judge-list">{judges.map((judge, index) => <button key={`${judge.label}:${index}`} className={/false|fail/i.test(judge.value) ? "failure" : judge.label === "verifier" && /true|pass/i.test(judge.value) ? "verifier-pass" : ""} onClick={() => { const found = events.findIndex((event) => event.id === judge.eventId); if (found >= 0) onSelected(found); }}><small>{judge.label}</small><b>{judge.value}</b></button>)}{!judges.length && <span className="silent-verdict">no judge outcome recorded</span>}</div>
       <button onClick={() => setHelp(true)}>?</button>
@@ -247,7 +248,7 @@ function Read({ trajectory, analysis, queueIndex, queueTotal, selected, fidelity
   </main>;
 }
 
-function Compare({ comparison, help, onBack, setHelp }: { comparison: ComparisonResponse; help: boolean; onBack: () => void; setHelp: (value: boolean) => void }) {
+function Compare({ comparison, help, selected, onSelected, onBack, onOpenLeft, setHelp }: { comparison: ComparisonResponse; help: boolean; selected: number; onSelected: (value: number) => void; onBack: () => void; onOpenLeft: () => void; setHelp: (value: boolean) => void }) {
   const root = useRef<HTMLElement>(null);
   useReadingSurfaceFocus(root, `${comparison.left.trajectory.id}:${comparison.right.trajectory.id}`);
   const left = stagesFor(comparison.left), right = stagesFor(comparison.right);
@@ -257,30 +258,30 @@ function Compare({ comparison, help, onBack, setHelp }: { comparison: Comparison
   const keys = [...new Set([...leftStages.map((stage) => stage.key), ...rightStages.map((stage) => stage.key)])];
   const stage = (items: Stage[], key: string) => items.find((item) => item.key === key);
   const divergent = keys.findIndex((key) => stageChanged(stage(leftStages, key), stage(rightStages, key)));
-  const [selected, setSelected] = useState(Math.max(0, divergent));
   const [curve, setCurve] = useState(true);
   const [fidelity, setFidelity] = useState(3);
   useCommands("comparison", {
     [commandIds.comparison.back]: onBack,
-    [commandIds.comparison.next]: () => setSelected((value) => Math.min(keys.length - 1, value + 1)),
-    [commandIds.comparison.previous]: () => setSelected((value) => Math.max(0, value - 1)),
-    [commandIds.comparison.firstDivergence]: () => divergent >= 0 ? setSelected(divergent) : false,
+    [commandIds.comparison.next]: () => onSelected(Math.min(keys.length - 1, selected + 1)),
+    [commandIds.comparison.previous]: () => onSelected(Math.max(0, selected - 1)),
+    [commandIds.comparison.firstDivergence]: () => divergent >= 0 ? onSelected(divergent) : false,
     [commandIds.comparison.toggleDivergenceCurve]: () => setCurve((value) => !value),
+    [commandIds.comparison.openLeft]: onOpenLeft,
     [commandIds.view.fidelityUp]: () => setFidelity((value) => Math.min(5, value + 1)),
     [commandIds.view.fidelityDown]: () => setFidelity((value) => Math.max(0, value - 1)),
     [commandIds.view.toggleHelp]: () => setHelp(!help),
   }, !help);
-  return <main ref={root} tabIndex={0} className="instrument compare-mode" aria-label="Pair Compare">
+  return <main ref={root} tabIndex={0} className="instrument compare-mode" aria-label="Pair Compare" data-selected-stage={keys[selected] ?? ""}>
     <header className="instrument-head"><div><span className="eyebrow">Pair Compare</span><h1>{comparison.left.trajectory.id} vs {comparison.right.trajectory.id}</h1><p>reference: <b>{comparison.left.trajectory.id}</b> · aligned by {tier} · never step index</p></div><button onClick={() => setHelp(true)}>?</button></header>
     <section className="stage-grid" aria-label="Stage aligned comparison">
       <div className="stage-head reference">reference</div><div className="stage-head">stage</div><div className="stage-head">candidate</div><div className="stage-head">Δ events</div>
-      {keys.map((key, index) => { const l = stage(leftStages, key), r = stage(rightStages, key); const changed = stageChanged(l, r); const delta = (r?.events.length ?? 0) - (l?.events.length ?? 0); return <button key={key} className={`stage-row ${selected === index ? "selected" : ""} ${changed ? "divergent" : ""}`} onClick={() => setSelected(index)}>
+      {keys.map((key, index) => { const l = stage(leftStages, key), r = stage(rightStages, key); const changed = stageChanged(l, r); const delta = (r?.events.length ?? 0) - (l?.events.length ?? 0); return <button key={key} className={`stage-row ${selected === index ? "selected" : ""} ${changed ? "divergent" : ""}`} onClick={() => onSelected(index)}>
         <span>{l ? `${l.events.length} events` : "absent"}{fidelity >= 4 && l && <small>{l.events.map((event) => glyphForKind(event.kind)).join("")}</small>}</span><b>{l?.label ?? r?.label ?? key}{index === divergent ? " ◂ first divergence" : ""}</b><span>{r ? `${r.events.length} events` : "absent"}{fidelity >= 4 && r && <small>{r.events.map((event) => glyphForKind(event.kind)).join("")}</small>}</span><em className={delta > 0 ? "ahead" : ""}>{delta >= 0 ? "+" : ""}{delta}</em>
       </button>; })}
     </section>
     {curve && <section className="delta-curve" aria-label="Cumulative event delta">cumulative cost delta {keys.map((key, index) => { const upto = keys.slice(0, index + 1).reduce((sum, stageKey) => sum + (stage(rightStages, stageKey)?.events.length ?? 0) - (stage(leftStages, stageKey)?.events.length ?? 0), 0); return <i key={key} className={upto > 0 ? "ahead" : ""} style={{ height: `${Math.max(2, Math.abs(upto) * 5)}px` }} title={`${key}: ${upto >= 0 ? "+" : ""}${upto}`} />; })}</section>}
     <section className="compare-detail"><div><h2>{comparison.left.trajectory.id} · reference</h2><pre>{preview(stage(leftStages, keys[selected])?.events.map(eventDetail), 1400)}</pre></div><div><h2>{comparison.right.trajectory.id}</h2><pre>{preview(stage(rightStages, keys[selected])?.events.map(eventDetail), 1400)}</pre></div></section>
-    <footer className="instrument-keys"><span><kbd>j</kbd><kbd>k</kbd> stage</span><span><kbd>d</kbd> first divergent</span><span><kbd>Shift+D</kbd> curve</span><span><kbd>[</kbd><kbd>]</kbd> fidelity</span><span><kbd>Esc</kbd> Browse</span></footer>
+    <footer className="instrument-keys"><span><kbd>j</kbd><kbd>k</kbd> stage</span><span><kbd>d</kbd> first divergent</span><span><kbd>Enter</kbd> read reference</span><span><kbd>Shift+D</kbd> curve</span><span><kbd>[</kbd><kbd>]</kbd> fidelity</span><span><kbd>Esc</kbd> Browse</span></footer>
     {help && <HelpOverlay scope="comparison" onClose={() => setHelp(false)} />}
   </main>;
 }
@@ -292,6 +293,8 @@ export function App({ initialTrajectory, provider = daemonProvider }: { initialT
   const [trajectory, setTrajectory] = useState(initialTrajectory ?? sampleTrajectory);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
+  const [comparisonSelected, setComparisonSelected] = useState(0);
+  const [readReturnMode, setReadReturnMode] = useState<"browse" | "compare">("browse");
   const [browseIndex, setBrowseIndex] = useState(0);
   const [selected, setSelected] = useState(0);
   const [fidelity, setFidelity] = useState(3);
@@ -352,7 +355,7 @@ export function App({ initialTrajectory, provider = daemonProvider }: { initialT
   const boundedBrowseIndex = Math.min(browseIndex, Math.max(0, filtered.length - 1));
   const selectedRow = filtered[boundedBrowseIndex];
 
-  const openRow = async (row = selectedRow) => {
+  const openRow = async (row = selectedRow, preserveAxis = false) => {
     if (!row || loading.current) return;
     const rowID = rowKey(row);
     const requestID = ++openRequest.current;
@@ -364,7 +367,7 @@ export function App({ initialTrajectory, provider = daemonProvider }: { initialT
       setTrajectory(loaded.trajectory); setPresentation(loaded.presentation); setAnalysis(null);
       const anomaly = firstAnomaly(loaded.trajectory); setSelected(anomaly); setHover(undefined);
 	  const initialSelectionRevision = selectionRevision.current;
-      setAxis({ start: loaded.trajectory.events[0].sequence, end: loaded.trajectory.events.at(-1)!.sequence });
+      if (!preserveAxis) setAxis({ start: loaded.trajectory.events[0].sequence, end: loaded.trajectory.events.at(-1)!.sequence });
       setMode("read");
       if (row.source_id !== "sample") provider.loadAnalysis(row.source_id, row.trajectory.id).then((result) => {
 		if (activeRow.current !== rowID || requestID !== openRequest.current) return;
@@ -391,7 +394,13 @@ export function App({ initialTrajectory, provider = daemonProvider }: { initialT
     if (pair.length !== 2) return;
     const left = ordered.find((row) => row.trajectory.id === pair[0]), right = ordered.find((row) => row.trajectory.id === pair[1]);
     if (!left || !right || left.source_id !== right.source_id) { setError("Pair Compare requires two trajectories from one indexed source"); return; }
-    try { setComparison(await provider.loadComparison(left.source_id, left.trajectory.id, right.trajectory.id)); setMode("compare"); }
+    try {
+      const loaded = await provider.loadComparison(left.source_id, left.trajectory.id, right.trajectory.id);
+      const leftStages = stagesFor(loaded.left), rightStages = stagesFor(loaded.right);
+      const keys = [...new Set([...leftStages.stages.map((stage) => stage.key), ...rightStages.stages.map((stage) => stage.key)])];
+      setComparisonSelected(Math.max(0, keys.findIndex((key) => stageChanged(leftStages.stages.find((stage) => stage.key === key), rightStages.stages.find((stage) => stage.key === key)))));
+      setComparison(loaded); setMode("compare");
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not compare trajectories"); }
   };
   const nextRollout = (delta: number) => {
@@ -400,17 +409,17 @@ export function App({ initialTrajectory, provider = daemonProvider }: { initialT
 	const nextIndex = (index + delta + filtered.length) % filtered.length;
 	const next = filtered[nextIndex];
 	setBrowseIndex(nextIndex);
-    void openRow(next);
+	void openRow(next, true);
   };
 
   const adjustFidelity = (delta: number) => setFidelity((value) => Math.max(0, Math.min(5, value + delta)));
   const selectEvent = (value: number) => { selectionRevision.current++; setSelected(value); };
-  return <div className="instrument-shell">
+  return <div className="instrument-shell" data-filter={query}>
     <button className="theme-toggle" aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme}</button>
     {error && <div className="instrument-error" role="alert">{error}</div>}
     {presentation?.notices?.map((notice) => <div className="presentation-notice" role="status" key={notice}>{notice}</div>)}
-    {mode === "browse" && <Browse rows={filtered} selected={boundedBrowseIndex} fidelity={fidelity} projection={projection} marks={marks} tags={tags} query={query} onSelected={setBrowseIndex} onFidelity={adjustFidelity} onProjection={setProjection} onOpen={() => void openRow()} onToggleMark={toggleMark} onCompare={() => void compareRows()} onTag={(tag) => { if (!selectedRow) return; setTags((current) => new Map(current).set(selectedRow.trajectory.id, tag)); if (boundedBrowseIndex < filtered.length - 1) setBrowseIndex(boundedBrowseIndex + 1); }} onQuery={setQuery} help={help} setHelp={setHelp} />}
-	{mode === "read" && <Read trajectory={trajectory} analysis={analysis} queueIndex={filtered.findIndex((row) => rowKey(row) === activeRow.current)} queueTotal={filtered.length} selected={selected} fidelity={fidelity} axis={axis} hover={hover} help={help} onSelected={selectEvent} onFidelity={adjustFidelity} onAxis={setAxis} onHover={setHover} onBrowse={() => { setHelp(false); setMode("browse"); }} onRollout={nextRollout} onCompare={() => void compareRows()} setHelp={setHelp} />}
-    {mode === "compare" && comparison && <Compare comparison={comparison} help={help} onBack={() => { setHelp(false); setMode("browse"); }} setHelp={setHelp} />}
+    {mode === "browse" && <Browse rows={filtered} selected={boundedBrowseIndex} fidelity={fidelity} projection={projection} marks={marks} tags={tags} query={query} onSelected={setBrowseIndex} onFidelity={adjustFidelity} onProjection={setProjection} onOpen={() => { setReadReturnMode("browse"); void openRow(); }} onToggleMark={toggleMark} onCompare={() => void compareRows()} onTag={(tag) => { if (!selectedRow) return; setTags((current) => new Map(current).set(selectedRow.trajectory.id, tag)); if (boundedBrowseIndex < filtered.length - 1) setBrowseIndex(boundedBrowseIndex + 1); }} onQuery={setQuery} help={help} setHelp={setHelp} />}
+	{mode === "read" && <Read trajectory={trajectory} analysis={analysis} queueIndex={filtered.findIndex((row) => rowKey(row) === activeRow.current)} queueTotal={filtered.length} selected={selected} fidelity={fidelity} axis={axis} hover={hover} help={help} onSelected={selectEvent} onFidelity={adjustFidelity} onAxis={setAxis} onHover={setHover} onBrowse={() => { setHelp(false); setMode(readReturnMode); }} onRollout={nextRollout} onCompare={() => void compareRows()} setHelp={setHelp} />}
+    {mode === "compare" && comparison && <Compare comparison={comparison} help={help} selected={comparisonSelected} onSelected={setComparisonSelected} onBack={() => { setHelp(false); setMode("browse"); }} onOpenLeft={() => { const left = ordered.find((row) => row.trajectory.id === comparison.left.trajectory.id); if (left) { setReadReturnMode("compare"); void openRow(left); } }} setHelp={setHelp} />}
   </div>;
 }

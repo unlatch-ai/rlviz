@@ -1,4 +1,4 @@
-.PHONY: build check clean dev format gallery lint site test wasm-check webapp webapp-e2e webapp-install webapp-test web-build web-e2e web-install
+.PHONY: build check clean dev e2e-flows format gallery lint site test wasm-check webapp webapp-e2e webapp-install webapp-test web-build web-e2e web-install
 
 build: web-build
 	mkdir -p bin
@@ -25,6 +25,10 @@ webapp-test: webapp-install
 
 webapp-e2e: webapp
 	npm --prefix webapp run test:e2e
+
+e2e-flows: web-build webapp
+	cd web && npm exec playwright test e2e/flow-runner.spec.ts
+	cd webapp && npm exec playwright test e2e/flow-runner.spec.ts
 
 web-build:
 	npm --prefix web run build
@@ -71,6 +75,7 @@ check: lint
 	$(MAKE) webapp
 	./scripts/install_test.sh
 	./scripts/render_homebrew_formula_test.sh
+	$(MAKE) e2e-flows
 
 dev:
 	npm --prefix web run dev

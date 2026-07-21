@@ -35,7 +35,7 @@ export const commandIds = {
   comparison: {
     back: "comparison.back", next: "comparison.next", previous: "comparison.previous",
     firstDivergence: "comparison.firstDivergence", nextChange: "comparison.nextChange",
-    toggleDivergenceCurve: "comparison.toggleDivergenceCurve",
+    toggleDivergenceCurve: "comparison.toggleDivergenceCurve", openLeft: "comparison.openLeft",
   },
 } as const;
 
@@ -117,6 +117,7 @@ export const commands: readonly CommandDefinition[] = [
   { id: commandIds.comparison.firstDivergence, scope: "comparison", label: "First meaningful divergence", defaultBindings: ["d"] },
   { id: commandIds.comparison.nextChange, scope: "comparison", label: "Next change", defaultBindings: ["n"] },
   { id: commandIds.comparison.toggleDivergenceCurve, scope: "comparison", label: "Toggle divergence curve", defaultBindings: ["Shift+D"] },
+  { id: commandIds.comparison.openLeft, scope: "comparison", label: "Read reference trajectory", defaultBindings: ["Enter"] },
 ] as const;
 
 const commandById = new Map<CommandId, CommandDefinition>(commands.map((command) => [command.id, command]));

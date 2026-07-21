@@ -36,6 +36,22 @@ vercel deploy site/dist
 The generated `CNAME` file is harmless static output; Vercel project and domain
 configuration remain the deployment source of truth.
 
+Pushes to `main` deploy both static surfaces through
+`.github/workflows/deploy.yml`. Configure these GitHub Actions settings before
+enabling deployment:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `VERCEL_TOKEN` | Vercel access token authorized for the team and both projects |
+| Variable | `VERCEL_ORG_ID` | `team_Ne0q1qtstphdUEi4nvQYFluC` |
+| Variable | `VERCEL_PROJECT_ID_DOCS` | Project ID for `rlviz` (`rlviz.dev`) |
+| Variable | `VERCEL_PROJECT_ID_APP` | Project ID for `rlviz-app` (`app.rlviz.dev`) |
+
+The workflow fails before building if any setting is empty. It reads the Go
+toolchain version from `go.mod`, builds `site/dist` and `webapp/dist` (including
+the Go WebAssembly core), and deploys each directory to its own project. Forks
+emit a notice and do not deploy.
+
 ## Publish
 
 1. Choose the release version and confirm it does not already exist locally or
