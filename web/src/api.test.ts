@@ -87,6 +87,21 @@ describe("trajectory API normalization", () => {
     expect(result.presentation).toEqual(presentation);
   });
 
+  it("loads every indexed event page and reports a completed page", async () => {
+    const first = Array.from({ length: 200 }, (_, sequence) => ({ id: `event-${sequence}`, sequence, kind: "message" }));
+    const rest = Array.from({ length: 50 }, (_, offset) => ({ id: `event-${offset + 200}`, sequence: offset + 200, kind: "message" }));
+    const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).includes("/indexed/events?")
+      ? new Response(JSON.stringify({ events: rest, page: { count: 50, total: 250, limit: 200, after_sequence: 199, has_more: false } }))
+      : new Response(JSON.stringify({ trajectory: { id: "long" }, events: first, page: { count: 200, total: 250, limit: 200, next_sequence: 199, has_more: true } })));
+    vi.stubGlobal("fetch", fetch);
+    const loaded = await loadIndexedTrajectory("source", "long");
+    expect(loaded.trajectory.events).toHaveLength(250);
+    expect(loaded.trajectory.events.at(-1)?.sequence).toBe(249);
+    expect(loaded.page).toEqual({ count: 250, total: 250, limit: 250, has_more: false });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(String(fetch.mock.calls[1][0])).toContain("after_sequence=199");
+  });
+
   it("builds a stable encoded group endpoint", () => {
     expect(groupEndpoint("source/one", "group two")).toBe("/api/v1/indexed/group?trajectory=source%2Fone&group_id=group+two");
     expect(groupPathsEndpoint("source/one", "group two")).toBe("/api/v1/indexed/paths?trajectory=source%2Fone&group_id=group+two");

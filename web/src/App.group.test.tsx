@@ -41,6 +41,7 @@ describe("Browse Read Compare flow", () => {
 		expect(screen.getAllByRole("option")[0]).toHaveTextContent("candidate");
 		expect(screen.getByRole("option", { selected: true })).toHaveTextContent("candidate");
 		expect(screen.getByText(/2 unresolved/)).toBeInTheDocument();
+		fireEvent.keyDown(window, { key: "]" }); fireEvent.keyDown(window, { key: "]" });
 		fireEvent.keyDown(window, { key: "3" });
 		expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
 		expect(screen.getByRole("option", { selected: true })).toHaveTextContent("reference");
@@ -203,7 +204,7 @@ describe("Browse Read Compare flow", () => {
 
 	it("reloads a lane restored from the jumplist after it was closed while loading", async () => {
 		const state = emptyWorkspace(); const id = laneId("source-1", "candidate");
-		state.lanes = [{ id, sourceId: "source-1", trajectoryId: "candidate", band: "focus", selected: 0, depth: 1, fidelity: 3, axis: { start: 0, end: 1 } }]; state.active = id;
+		state.lanes = [{ id, sourceId: "source-1", trajectoryId: "candidate", band: "focus", selected: 0, depth: 1, fidelity: 3, axis: { start: 0, end: 1 }, descentStack: [] }]; state.active = id;
 		window.history.replaceState({ rlvizWorkspace: state }, "", `/?workspace=${encodeURIComponent(serializeWorkspace(state))}`);
 		const loads: Array<(value: Awaited<ReturnType<ViewerProvider["loadTrajectory"]>>) => void> = [];
 		const provider: ViewerProvider = {

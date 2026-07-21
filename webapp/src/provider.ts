@@ -1,4 +1,4 @@
-import { normalizeTrajectoryResponse } from "../../web/src/api";
+import { completeEventPage, normalizeTrajectoryResponse } from "../../web/src/api";
 import type { LoadResult } from "../../web/src/api";
 import type { ViewerProvider } from "../../web/src/provider";
 import type { AnalysisResponse, BrowseResponse, ComparisonResponse, TrajectoryResponse } from "../../web/src/types";
@@ -20,7 +20,7 @@ export function createInMemoryProvider(collection: BrowserCollection, collection
     return {
       trajectory: normalizeTrajectoryResponse(value),
       isSample: false,
-      page: value.page,
+      page: completeEventPage(value.events?.length ?? value.page.count),
       source: value.source,
     };
   };

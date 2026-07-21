@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { defaultSeams, emptyWorkspace, laneId, legacyWorkspace, normalizeWorkspace, serializeWorkspace, workspaceFromSearch, workspaceURL } from "./workspace";
+import { defaultSeams, effectiveDepth, emptyWorkspace, laneId, legacyWorkspace, normalizeWorkspace, serializeWorkspace, workspaceFromSearch, workspaceURL } from "./workspace";
 
 describe("workspace arrangements", () => {
   it("round-trips lanes, per-lane view state, and seam ratios", () => {
     const workspace = emptyWorkspace();
-    workspace.lanes = [{ id: laneId("source", "one"), sourceId: "source", trajectoryId: "one", band: "focus", selected: 4, depth: 3, fidelity: 5, axis: { start: 10, end: 20 } }];
+    workspace.lanes = [{ id: laneId("source", "one"), sourceId: "source", trajectoryId: "one", band: "focus", selected: 4, depth: 4, fidelity: 5, axis: { start: 10, end: 20 }, descentStack: [{ depth: 3, axis: { start: 0, end: 30 } }] }];
     workspace.active = workspace.lanes[0].id;
     workspace.seams.rail = 0.31;
     const encoded = serializeWorkspace(workspace);
     expect(workspaceFromSearch(`?workspace=${encodeURIComponent(encoded)}`)).toEqual(workspace);
     expect(workspaceURL(workspace, { pathname: "/view", search: "?trajectory=old&mode=read", hash: "#token=x" } as Location)).toContain("workspace=");
+  });
+
+  it("uses Surface as context's effective depth without discarding stored focus depth", () => {
+    const lane = { id: "lane", sourceId: "source", trajectoryId: "one", band: "context" as const, selected: 0, depth: 3, fidelity: 3, axis: { start: 0, end: 10 }, descentStack: [] };
+    expect(effectiveDepth(lane)).toBe(1);
+    expect(effectiveDepth({ ...lane, band: "focus" })).toBe(3);
+  });
+
+  it("ignores legacy rail projection fields and omits them when serializing", () => {
+    const legacy = { ...emptyWorkspace(), railProjection: "caterpillar" };
+    const normalized = normalizeWorkspace(legacy)!;
+    expect(normalized).not.toHaveProperty("railProjection");
+    expect(serializeWorkspace(normalized)).not.toContain("railProjection");
   });
 
   it("bounds untrusted ratios and keeps at most two focus lanes", () => {

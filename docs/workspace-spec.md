@@ -11,8 +11,11 @@ One screen, always. Three fixed zones; no floating windows, no
 drag-to-rearrange:
 
 - **Rail** (left, collapsible `t`): the collection — sources, cases,
-  rollouts; attention ordering, filter, verdict tags, projections (table /
-  caterpillars / by-case / by-failure-bucket when a sidecar provides one).
+  rollouts; attention ordering, filter, and verdict tags. The rail has one
+  view governed by the fidelity ladder: L0 hairlines for shape scan, L1 marks
+  for failure spotting, L2 texture and L3 glyph caterpillars for event mix,
+  L4 one-line previews with event/reward columns for triage, and L5 complete
+  rows for metadata inspection.
   Selecting in the rail feeds the stage; it never navigates away.
 - **Stage** (center): trace lanes in two bands.
   - **Focus band**: up to 2 full-height lanes — depth descent, zoom, and
@@ -71,13 +74,23 @@ Depth is a real representation change (this retires the decorative depth
 counter):
 
 - **Surface**: shape strip only (context-lane rendering).
-- **Episodes**: episode bands are the reading unit; `j`/`k` move by
-  episode; **click a band = descend into it** (zoom to its extent).
+- **Episodes**: episode bands are the reading unit; bands come from adapter
+  episode/alignment keys, with deterministic tool-run, error, and context
+  boundaries as fallback. Width reflects event extent; the selected band's
+  detail reports event-kind counts, errors, and span addresses. `j`/`k` move
+  by episode; **click a band = descend into it** (zoom to its extent).
 - **Events**: event stream scoped to the current episode, compressed strip
-  above; click the strip = ascend one level.
-- **Source**: raw record + provenance.
+  above; click the strip = ascend one level. Landmark jumps switch episode
+  and pan when their target is outside the current scope.
+- **Source**: raw record + provenance for the selected event, with the
+  compressed strip retained above.
 - `Enter`/`Esc` are the keyboard equivalents of the click grammar. Anchor
   stability holds across every transition.
+- Context-band lanes always render Surface regardless of their stored depth.
+  Promoting one back to focus restores that stored depth.
+- Every descent stores its pre-descent axis with the prior depth. Ascent
+  restores the axis you descended from; strip-click and `Esc` are identical,
+  and jumplist snapshots include the full descent stack.
 - With a reference pinned, stage anchors draw as vertical alignment lines
   across all lanes (including context lanes' tick marks).
 
@@ -94,7 +107,7 @@ breadcrumb.
 RLViz never calls a model. `rlviz analyze <kind>` prints the prompt and
 file paths for the user's own coding agent, which writes schema-validated
 sidecar JSON that the UI renders with `agent` provenance. Kinds:
-`failure-groups` (cohort failure buckets → rail projection + filter
+`failure-groups` (cohort failure buckets → rail filter
 chips), `cross-session` (pass-vs-fail behavioral findings per stage →
 console + anchor annotations), `root-cause` (hypothesis chain for one
 rollout), `stage-labels` (semantic episode names). Validation rule: every
@@ -111,7 +124,8 @@ and across via `Tab`, keyboard-only plus pointer variants that must land
 in identical states. Required additional flows for this architecture:
 lane add/close/swap, promote/demote, reference pin with overlay
 assertions, seam resize (pointer + keyboard) with persistence, jumplist
-restoration depth, and rail-projection switches with lanes open.
+restoration depth, layer pointer/keyboard parity, cross-episode landmarks,
+anchor stability, and the rail fidelity ladder with lanes open.
 
 ## TUI mapping
 

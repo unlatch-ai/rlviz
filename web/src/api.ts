@@ -3,6 +3,10 @@ import type { AnalysisResponse, BrowseResponse, ComparisonResponse, EventPageRes
 
 export interface LoadResult { trajectory: Trajectory; isSample: boolean; page?: PageMetadata; signalPage?: PageMetadata; artifactPage?: PageMetadata; source?: IndexedSource; presentation?: PresentationConfig; error?: string }
 
+export function completeEventPage(count: number): PageMetadata {
+  return { count, total: count, limit: count, has_more: false };
+}
+
 export function trajectoryEndpoint(search = globalThis.location?.search ?? ""): string {
   const params = new URLSearchParams(search);
   const indexed = params.get("indexed") === "1";
@@ -126,7 +130,18 @@ export async function loadIndexedTrajectory(sourceId: string, trajectoryId: stri
   const payload = (await response.json()) as TrajectoryResponse & { page?: PageMetadata };
   const trajectory = normalizeTrajectoryResponse(payload);
   if (!trajectory.events.length) throw new Error("trajectory contains no events");
-  return { trajectory, isSample: false, page: payload.page, signalPage: payload.signal_page, artifactPage: payload.artifact_page, source: payload.source, presentation: payload.presentation };
+  let page = payload.page;
+  while (page?.has_more) {
+    if (page.next_sequence === undefined) throw new Error("Event API returned a truncated page without a continuation sequence");
+    const previous = page.next_sequence;
+    const next = await loadEventPage(sourceId, trajectoryId, previous, signal);
+    if (!next.events.length || (next.page.next_sequence !== undefined && next.page.next_sequence <= previous)) {
+      throw new Error("Event API pagination did not advance");
+    }
+    trajectory.events.push(...next.events);
+    page = next.page;
+  }
+  return { trajectory, isSample: false, page: completeEventPage(trajectory.events.length), signalPage: payload.signal_page, artifactPage: payload.artifact_page, source: payload.source, presentation: payload.presentation };
 }
 
 export async function loadChildPage(kind: "signals", sourceId: string, trajectoryId: string, offset: number, signal?: AbortSignal): Promise<{ items: TrajectorySignal[]; page: PageMetadata }>;

@@ -221,7 +221,7 @@ and standalone keymap-file import/export remain future work.
 
 Core commands include next/previous landmark, next/previous turn, expand,
 inspect, search, next error, next context change, next grader, open outcome,
-open group, compare, copy deep link, and toggle raw. Default Vim-style bindings
+open group, compare, copy deep link, and descend to Source. Default Vim-style bindings
 can coexist with arrows and accessible button navigation.
 
 ## Extension boundary

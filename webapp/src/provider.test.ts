@@ -31,6 +31,7 @@ describe("in-memory viewer provider", () => {
     expect(browse.trajectories[0].source_name).toBe("coding-agent-bugfix.ndjson");
     const loaded = await provider.loadInitial();
     expect(loaded.trajectory.events).toHaveLength(300);
+    expect(loaded.page).toEqual({ count: 300, total: 300, limit: 300, has_more: false });
     expect(loaded.trajectory.events[0].id).toBe("coding-event-0000");
     expect(new TextDecoder().decode(await provider.loadArtifactContent("gallery", loaded.trajectory.id, "coding-artifact-patch"))).toContain("cache/store.go");
   });

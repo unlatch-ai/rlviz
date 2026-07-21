@@ -51,7 +51,7 @@ export function Inspector({ event, raw, presentation, analysis, analysisLoading,
   };
 
   return <aside className="inspector">
-    <div className="panel-heading"><span>Details</span><span className="panel-hint">{bindingLabel(commandIds.trajectory.toggleRaw)} raw</span></div>
+    <div className="panel-heading"><span>Details</span>{bindingLabel(commandIds.trajectory.toggleRaw) && <span className="panel-hint">{bindingLabel(commandIds.trajectory.toggleRaw)} raw</span>}</div>
     <div className="selected-heading"><Kind kind={event.kind} /><div><h3>{landmark.label}</h3><span>event {event.sequence}</span></div></div>
     <div className="inspector-scroll">
       {raw
