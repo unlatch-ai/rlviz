@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RLViz concept — Caterpillar group view</title>
+<style>
+  :root { --fg:#1a1a1a; --dim:#8a8a8a; --faint:#d8d8d8; --bg:#fafafa; --sel:#1a1a1a; --err:#c0392b; --ctx:#8e6db8; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.5 ui-sans-serif,system-ui; padding:28px 36px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  h1 { font-size:14px; font-weight:600; }
+  .meta { color:var(--dim); font-size:12px; }
+  .fidelity { color:var(--dim); font-size:12px; margin-bottom:16px; }
+  .fidelity b { color:var(--fg); font-weight:600; }
+  .rows { display:flex; flex-direction:column; }
+  .row { display:flex; align-items:center; gap:10px; padding:0 6px; border-left:2px solid transparent; cursor:pointer; }
+  .row.selected { border-left-color:var(--sel); background:#f0f0f0; }
+  .row .id { width:70px; color:var(--dim); font:11px ui-monospace,monospace; flex:none; }
+  .row .verdict { width:16px; flex:none; text-align:center; font-size:11px; }
+  .row .verdict.fail { color:var(--err); font-weight:700; }
+  .row .verdict.pass { color:var(--faint); }
+  .cat { position:relative; height:var(--h); background:#ececec; flex:none; }
+  .row.selected .cat { background:#e2e2e2; }
+  .mark { position:absolute; top:0; bottom:0; }
+  .mark.err { background:var(--err); width:2px; }
+  .mark.ctx { background:var(--ctx); width:2px; }
+  .mark.tool { background:#b5b5b5; width:1px; }
+  .glyphs { font:10px ui-monospace,monospace; color:var(--dim); letter-spacing:1px; white-space:nowrap; overflow:hidden; }
+  .glyphs .e { color:var(--err); font-weight:700; }
+  .glyphs .c { color:var(--ctx); font-weight:700; }
+  .preview { color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  footer { position:fixed; bottom:0; left:0; right:0; padding:8px 36px; background:var(--bg); border-top:1px solid var(--faint); color:var(--dim); font:11px ui-monospace,monospace; }
+  kbd { background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>swebench-mini · run 2026-07-18 · 24 rollouts</h1>
+  <div class="meta">9 fail · 15 pass · sorted by attention</div>
+</header>
+<div class="fidelity" id="fidelity-label"></div>
+<div class="rows" id="rows"></div>
+<footer>
+  <kbd>[</kbd><kbd>]</kbd> fidelity &nbsp; <kbd>j</kbd><kbd>k</kbd> select &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> triage table
+</footer>
+<script>
+// deterministic synthetic cohort: lengths vary ~40..400, fails carry errors
+function rng(seed) { return () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; }
+const r = rng(7);
+const KINDS = ["tool","msg","obs","tool","obs","tool"];
+const GLYPH = { tool:"▸", msg:"‒", obs:"·", err:"✕", ctx:"▮", reward:"◆", think:"~" };
+const trajs = [];
+for (let i = 0; i < 24; i++) {
+  const len = 40 + Math.floor(r() * 360);
+  const fail = i < 9;
+  const events = [];
+  for (let s = 0; s < len; s++) {
+    let kind = KINDS[Math.floor(r() * KINDS.length)];
+    if (fail && s > len * 0.4 && r() < 0.05) kind = "err";
+    if (r() < 0.008) kind = "ctx";
+    events.push({ kind, note: kind === "tool" ? "bash: pytest -x tests/" : kind === "err" ? "ToolError: exit 2 — 3 tests failed" : "…" });
+  }
+  trajs.push({ id: "traj-" + String(i + 1).padStart(3, "0"), fail, events });
+}
+// attention order: fails first, then by error count
+trajs.sort((a, b) => (b.fail - a.fail) || b.events.filter(e => e.kind === "err").length - a.events.filter(e => e.kind === "err").length);
+
+// prepend real trajectories (shape-only extract of Claude Code agent
+// transcripts) when data/real-cohort.json is present; synthetic rows remain
+// as the tail so both are visible in one cohort.
+fetch("data/real-cohort.json").then(r => r.ok ? r.json() : null).then(real => {
+  if (!real) return;
+  real.forEach(t => { t.real = true; t.events.forEach(e => { if (!e.note) e.note = e.name || "…"; }); });
+  trajs.unshift(...real);
+  sel = 0; render();
+}).catch(() => {});
+
+const LEVELS = [
+  { name: "L0 hairline", h: 3, mode: "strip", marks: ["err"] },
+  { name: "L1 marks", h: 8, mode: "strip", marks: ["err", "ctx"] },
+  { name: "L2 texture", h: 14, mode: "strip", marks: ["err", "ctx", "tool"] },
+  { name: "L3 glyphs", h: 18, mode: "glyphs" },
+  { name: "L4 preview", h: 34, mode: "preview" },
+];
+let level = 1, sel = 0;
+const MAXW = 640; // px for the longest trajectory
+const maxLen = Math.max(...trajs.map(t => t.events.length));
+
+function render() {
+  const L = LEVELS[level];
+  document.getElementById("fidelity-label").innerHTML =
+    "fidelity <b>" + L.name + "</b> — length ∝ events (longest " + maxLen + ")";
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  trajs.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "row" + (i === sel ? " selected" : "");
+    row.style.padding = (L.h < 10 ? "1px 6px" : "3px 6px");
+    const w = Math.round(t.events.length / maxLen * MAXW);
+    let body = "";
+    if (L.mode === "strip") {
+      let marks = "";
+      t.events.forEach((e, s) => {
+        const k = e.kind === "err" ? "err" : e.kind === "ctx" ? "ctx" : e.kind === "tool" ? "tool" : null;
+        if (k && L.marks.includes(k)) marks += `<span class="mark ${k}" style="left:${(s / t.events.length * 100).toFixed(2)}%"></span>`;
+      });
+      body = `<div class="cat" style="--h:${L.h}px;width:${w}px">${marks}</div>`;
+    } else if (L.mode === "glyphs") {
+      const g = t.events.map(e =>
+        e.kind === "err" ? '<span class="e">✕</span>' : e.kind === "ctx" ? '<span class="c">▮</span>' : GLYPH[e.kind] || "·").join("");
+      body = `<div class="glyphs" style="width:${w}px">${g}</div>`;
+    } else {
+      const firstErr = t.events.find(e => e.kind === "err");
+      const g = t.events.slice(0, 90).map(e => e.kind === "err" ? '<span class="e">✕</span>' : GLYPH[e.kind] || "·").join("");
+      body = `<div style="width:${MAXW}px"><div class="glyphs">${g}</div><div class="preview">${t.events.length} events · ${firstErr ? "first error: " + firstErr.note : "no errors · verified pass"}</div></div>`;
+    }
+    row.innerHTML = `<span class="id">${t.real ? "◈ " : ""}${t.id}</span><span class="verdict ${t.fail ? "fail" : "pass"}">${t.fail ? "✕" : "·"}</span>${body}`;
+    row.onclick = () => { sel = i; render(); };
+    rows.appendChild(row);
+  });
+}
+document.addEventListener("keydown", ev => {
+  if (ev.key === "]") level = Math.min(LEVELS.length - 1, level + 1);
+  else if (ev.key === "[") level = Math.max(0, level - 1);
+  else if (ev.key === "j") sel = Math.min(trajs.length - 1, sel + 1);
+  else if (ev.key === "k") sel = Math.max(0, sel - 1);
+  else if (ev.key === "Enter") { window.location.href = "read-mode.html?traj=" + trajs[sel].id; return; }
+  else if (ev.key === "Escape") { window.location.href = "triage.html"; return; }
+  else return;
+  ev.preventDefault(); render();
+});
+render();
+</script>
+</body>
+</html>
