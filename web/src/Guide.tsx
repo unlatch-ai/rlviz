@@ -6,6 +6,7 @@ import formatsMarkdown from "../../internal/guide/pages/formats.md?raw";
 import agentsMarkdown from "../../internal/guide/pages/agents.md?raw";
 import privacyMarkdown from "../../internal/guide/pages/privacy.md?raw";
 import shortcutsMarkdown from "../../internal/guide/pages/shortcuts.md?raw";
+import patchNotesMarkdown from "../../internal/guide/pages/patch-notes.md?raw";
 import type { ViewerSetup } from "./Settings";
 
 type Block = { kind: "h1" | "h2" | "p" | "li" | "code"; text: string };
@@ -17,6 +18,7 @@ const pages = [
   { id: "formats", label: "Formats", markdown: formatsMarkdown },
   { id: "agents", label: "Agents", markdown: agentsMarkdown },
   { id: "privacy", label: "Privacy", markdown: privacyMarkdown },
+  { id: "patch-notes", label: "Patch notes", markdown: patchNotesMarkdown },
 ] as const;
 
 function blocks(markdown: string): Block[] {
@@ -57,21 +59,51 @@ function GuideLink({ href, label }: { href: string; label: string }) {
   </a>;
 }
 
+const guideLinks = [
+  { href: "https://rlviz.dev", label: "rlviz.dev" },
+  { href: "https://github.com/TheSnakeFang/rlviz", label: "Repo" },
+  { href: "https://x.com/sofangtastic", label: "Created by Kevin Fang" },
+] as const;
+
+function CopyableCode({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    let succeeded = false;
+    if (navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(text); succeeded = true; }
+      catch { /* Fall through for browsers that expose but restrict Clipboard. */ }
+    }
+    if (!succeeded) {
+      const input = document.createElement("textarea");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      succeeded = document.execCommand("copy");
+      input.remove();
+    }
+    if (!succeeded) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
+  return <div className="guide-code"><pre><code>{text}</code></pre><button type="button" onClick={() => void copy()} aria-label="Copy command">{copied ? "copied" : "copy"}</button></div>;
+}
+
 export function Guide({ active, setup, onActivate, onClose }: { active: boolean; setup: ViewerSetup; onActivate: () => void; onClose: () => void }) {
   const [pageID, setPageID] = useState("overview");
   const page = pages.find((candidate) => candidate.id === pageID) ?? pages[0];
   return <article className={`workspace-guide ${active ? "active-zone" : ""}`} tabIndex={0} onFocus={onActivate} onPointerDown={onActivate} aria-label="RLViz guide">
-    <header><span>Guide</span><button onClick={onClose}>close</button></header>
+    <header><nav aria-label="RLViz links">{guideLinks.map((link) => <GuideLink key={link.href} {...link} />)}</nav><button onClick={onClose}>close</button></header>
     <div className="guide-layout"><nav aria-label="Guide sections">{pages.map((candidate) => <button key={candidate.id} aria-current={candidate.id === page.id ? "page" : undefined} onClick={() => setPageID(candidate.id)}>{candidate.label}</button>)}</nav>
       <div className="guide-copy">{blocks(page.markdown).map((block, index) => {
         if (block.kind === "h1") return <h1 key={index}>{block.text}</h1>;
         if (block.kind === "h2") return <div key={index}>{page.id === "overview" && setup.mode === "browser" && block.text === "Please read" && <section className="guide-actions" aria-label="Open data"><button className="primary" onClick={setup.onOpenDirectory}>Open trace directory</button><button onClick={setup.onOpenAdapter}>Upload WASM adapter</button></section>}<h2>{block.text}</h2></div>;
         if (block.kind === "li") {
-          const link = block.text.match(/^\[([^\]]+)\]\((https:\/\/[^)]+)\)$/);
-          if (page.id === "overview" && link && ["https://rlviz.dev", "https://github.com/TheSnakeFang/rlviz", "https://kevinfang.tech"].includes(link[2])) return <GuideLink key={index} label={link[1]} href={link[2]} />;
           return <div className="guide-item" key={index}><span>•</span><p><Inline text={block.text} /></p></div>;
         }
-        if (block.kind === "code") return <pre key={index}><code>{block.text}</code></pre>;
+        if (block.kind === "code") return <CopyableCode key={index} text={block.text} />;
         return <p key={index}><Inline text={block.text} /></p>;
       })}</div>
     </div>

@@ -55,6 +55,7 @@ function normalizeEvent(event: TrajectoryEvent): TrajectoryEvent {
     title: event.title ?? (typeof metadata.title === "string" ? metadata.title : undefined),
     summary: event.summary ?? (typeof metadata.summary === "string" ? metadata.summary : undefined),
     duration_ms: event.duration_ms ?? (typeof metadata.duration_ms === "number" ? metadata.duration_ms : undefined),
+    token_count: event.token_count ?? (typeof metadata.token_count === "number" ? metadata.token_count : undefined),
     reward: event.reward ?? (typeof metadata.reward === "number" ? metadata.reward : dataReward),
   };
 }
@@ -72,8 +73,11 @@ export function normalizeTrajectoryResponse(payload: TrajectoryResponse): Trajec
       ...payload.trajectory,
       name: payload.trajectory.name ?? payload.case?.name,
       run_id: payload.trajectory.run_id ?? payload.run?.id ?? payload.case?.run_id,
+      run_name: payload.run?.name,
       case_id: payload.trajectory.case_id ?? payload.case?.id ?? payload.group?.case_id,
+      case_name: payload.case?.name,
       group_id: payload.trajectory.group_id ?? payload.group?.id,
+      group_name: payload.group?.name,
       model: payload.trajectory.model ?? trajectoryModel ?? runModel,
       started_at: payload.trajectory.started_at ?? payload.run?.started_at,
       total_reward: payload.trajectory.total_reward ?? (typeof rewardSignal?.value === "number" ? rewardSignal.value : undefined),

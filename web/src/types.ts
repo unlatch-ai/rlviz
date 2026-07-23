@@ -64,8 +64,11 @@ export interface Trajectory {
   id: string;
   name?: string;
   run_id?: string;
+  run_name?: string;
   case_id?: string;
+  case_name?: string;
   group_id?: string;
+  group_name?: string;
   model?: string;
   status?: string;
   termination?: string;

@@ -12,8 +12,8 @@ The GUI is the only trajectory display. Collection, rollout, Detail, Guide, and 
 ## Rollout and detail
 
 - `j` / `k` move event by event. `e` jumps to the next error and `r` to the next reward or grader.
-- `Enter` descends from overview to episodes, steps, and source. `Escape` ascends.
-- `d` opens a Detail module pinned to that rollout.
+- `Enter` opens the selected section in place: overview, episode, events, then source. `Escape` goes back up. An unpinned side Detail closes as you descend so the same event is not shown twice.
+- `d` opens or closes the shared Detail module. `Shift+D` pins it to the current rollout; `Shift+C` compacts or expands it.
 - Drag the timeline window to pan, click to center it, or drag either edge to resize it.
 
 ## Modules and shortcuts

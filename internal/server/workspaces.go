@@ -50,6 +50,9 @@ type Workspace struct {
 	GuideOpen      bool            `json:"guideOpen"`
 	SettingsOpen   bool            `json:"settingsOpen"`
 	Lanes          []WorkspaceLane `json:"lanes"`
+	DetailOpen     bool            `json:"detailOpen"`
+	DetailCompact  bool            `json:"detailCompact"`
+	DetailPinned   string          `json:"detailPinned,omitempty"`
 	Details        []string        `json:"details"`
 	Direction      string          `json:"direction"`
 	Reference      string          `json:"reference,omitempty"`
@@ -223,6 +226,13 @@ func normalizeWorkspace(workspace Workspace) (Workspace, error) {
 		}
 	}
 	workspace.Details = details
+	if workspace.DetailPinned != "" && !ids[workspace.DetailPinned] {
+		workspace.DetailPinned = ""
+	}
+	if len(workspace.Lanes) == 0 {
+		workspace.DetailOpen = false
+		workspace.DetailPinned = ""
+	}
 	if workspace.Active == "" {
 		workspace.Active = "rail"
 	}

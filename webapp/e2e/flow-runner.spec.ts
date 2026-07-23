@@ -28,6 +28,8 @@ test.beforeEach(async ({ page }) => {
     guideOpen: true,
     settingsOpen: true,
     lanes: [],
+    detailOpen: false,
+    detailCompact: false,
     details: [],
     direction: "rows",
     active: "rail",
@@ -167,3 +169,31 @@ for (const flow of flows.filter((item) => item.surfaces.includes("webapp"))) {
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
 }
+
+test("default workspace prioritizes rollout and detail space", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByRole("option", { name: "checkout-rollout-02 Rollout signal summary" })).toBeVisible();
+  await page.keyboard.press("a");
+  await page.keyboard.press("j");
+  await page.keyboard.press("a");
+  await page.keyboard.press("Shift+S");
+  await page.keyboard.press("Shift+S");
+
+  await expect(page.getByRole("region", { name: "checkout-rollout-02" })).toBeVisible({ timeout: 15_000 });
+  const collection = await page.locator(".workspace-rail").boundingBox();
+  const guide = await page.locator(".workspace-guide").boundingBox();
+  const settings = await page.locator(".workspace-settings").boundingBox();
+  const lanes = await page.locator(".lane-track").all();
+  const detail = await page.locator(".workspace-console[data-shared-detail='true']").boundingBox();
+
+  expect(collection).not.toBeNull();
+  expect(guide).not.toBeNull();
+  expect(settings).not.toBeNull();
+  expect(lanes).toHaveLength(2);
+  expect(detail).not.toBeNull();
+  expect(collection!.width).toBeLessThanOrEqual(270);
+  expect(guide!.width).toBeLessThanOrEqual(460);
+  expect(settings!.height).toBeLessThanOrEqual(190);
+  expect(detail!.height).toBeGreaterThanOrEqual(640);
+  for (const lane of lanes) expect((await lane.boundingBox())!.width).toBeGreaterThanOrEqual(350);
+});

@@ -263,7 +263,13 @@ func stringsRepeat(value string, count int) string {
 }
 
 func checkoutCohort() ([]byte, error) {
-	s := base("run-checkout-cohort", "Synthetic checkout cohort", "case-checkout", "Complete checkout with saved card", "group-checkout", "16 sampled checkout rollouts")
+	s := &stream{}
+	s.add(
+		&model.Run{RecordType: model.RecordRun, ID: "run-checkout-cohort", Name: "Synthetic checkout evaluation", StartedAt: "2026-05-24T12:00:00Z", Metadata: model.Metadata{"synthetic": true, "gallery": true, "generator_seed": Seed, "model": "checkout-policy-1200"}},
+		&model.Case{RecordType: model.RecordCase, ID: "case-checkout", RunID: "run-checkout-cohort", Name: "Complete checkout with saved card", Metadata: model.Metadata{"synthetic": true}},
+		&model.Group{RecordType: model.RecordGroup, ID: "group-checkout-deliberate", CaseID: "case-checkout", Name: "Deliberate · temperature 0.2", Metadata: model.Metadata{"synthetic": true, "variant": "deliberate", "temperature": 0.2}},
+		&model.Group{RecordType: model.RecordGroup, ID: "group-checkout-direct", CaseID: "case-checkout", Name: "Direct · temperature 0.8", Metadata: model.Metadata{"synthetic": true, "variant": "direct", "temperature": 0.8}},
+	)
 	lengths := []int{28, 34, 42, 31, 55, 24, 47, 38, 62, 29, 51, 36, 44, 70, 33, 49}
 	for index := range 16 {
 		status, termination := "completed", "success"
@@ -272,7 +278,11 @@ func checkoutCohort() ([]byte, error) {
 		} else if index == 9 {
 			status, termination = "failed", "infrastructure_error"
 		}
-		s.add(&model.Trajectory{RecordType: model.RecordTrajectory, ID: fmt.Sprintf("checkout-rollout-%02d", index+1), GroupID: "group-checkout", Status: status, Termination: termination, Metadata: model.Metadata{"synthetic": true, "sample_index": index, "event_count": lengths[index], "recovery_after_retries": index == 13}})
+		groupID := "group-checkout-deliberate"
+		if index >= 8 {
+			groupID = "group-checkout-direct"
+		}
+		s.add(&model.Trajectory{RecordType: model.RecordTrajectory, ID: fmt.Sprintf("checkout-rollout-%02d", index+1), GroupID: groupID, Status: status, Termination: termination, Metadata: model.Metadata{"synthetic": true, "sample_index": index, "event_count": lengths[index], "recovery_after_retries": index == 13}})
 	}
 	for rollout := range 16 {
 		trajectoryID := fmt.Sprintf("checkout-rollout-%02d", rollout+1)
@@ -310,11 +320,20 @@ func checkoutCohort() ([]byte, error) {
 			}
 			if index == lengths[rollout]-1 {
 				kind, title = "grader", "Checkout task grader"
-				input, data = nil, nil
-				output = map[string]any{"verdict": map[bool]string{true: "pass", false: "fail"}[passed], "score": map[bool]float64{true: 1, false: 0}[passed], "checks": map[string]any{"order_created": passed, "source_unchanged": true, "confirmation_visible": passed}}
+				input, data = map[string]any{"rubric": "Create the order with the saved card, preserve the source cart, and expose a confirmation."}, nil
+				output = map[string]any{"verdict": map[bool]string{true: "pass", false: "fail"}[passed], "score": map[bool]float64{true: 1, false: 0}[passed], "reason": map[bool]string{true: "Order state and confirmation satisfy every deterministic check.", false: "The rollout did not reach a verifiable completed checkout."}[passed], "checks": map[string]any{"order_created": passed, "source_unchanged": true, "confirmation_visible": passed}, "evidence": []string{fmt.Sprintf("checkout-%02d-event-%03d", rollout+1, max(0, index-2)), fmt.Sprintf("checkout-%02d-event-%03d", rollout+1, max(0, index-1))}}
 			}
 			id := fmt.Sprintf("checkout-%02d-event-%03d", rollout+1, index)
-			s.add(&model.Event{RecordType: model.RecordEvent, ID: id, TrajectoryID: trajectoryID, Sequence: int64(index * 10), Kind: kind, ParentID: parent, AlignmentKey: "stage:" + stage, Input: input, Output: output, Data: data, Source: &model.SourceLocation{Path: "synthetic/checkout/cohort.ndjson"}, Metadata: model.Metadata{"title": title, "synthetic": true}})
+			metadata := model.Metadata{"title": title, "synthetic": true, "duration_ms": 80 + (index*37+rollout*19)%900}
+			if kind == "generation" || kind == "grader" {
+				metadata["token_count"] = 24 + (index*11+rollout*7)%180
+			}
+			if kind == "grader" {
+				metadata["grader"] = "checkout-state-verifier"
+				metadata["verifier_type"] = "deterministic state verifier"
+				metadata["version"] = "2"
+			}
+			s.add(&model.Event{RecordType: model.RecordEvent, ID: id, TrajectoryID: trajectoryID, Sequence: int64(index * 10), Kind: kind, ParentID: parent, AlignmentKey: "stage:" + stage, Input: input, Output: output, Data: data, Source: &model.SourceLocation{Path: "synthetic/checkout/cohort.ndjson"}, Metadata: metadata})
 			parent = id
 		}
 		reward := 0.84 + float64((rollout*17+int(Seed%13))%15)/100
@@ -325,6 +344,8 @@ func checkoutCohort() ([]byte, error) {
 		s.add(
 			&model.Signal{RecordType: model.RecordSignal, ID: fmt.Sprintf("checkout-%02d-pass", rollout+1), TrajectoryID: trajectoryID, EventID: lastEvent, Name: "pass", Value: passed},
 			&model.Signal{RecordType: model.RecordSignal, ID: fmt.Sprintf("checkout-%02d-reward", rollout+1), TrajectoryID: trajectoryID, EventID: lastEvent, Name: "reward", Value: reward},
+			&model.Signal{RecordType: model.RecordSignal, ID: fmt.Sprintf("checkout-%02d-tokens", rollout+1), TrajectoryID: trajectoryID, Name: "token_count", Value: 760 + lengths[rollout]*31 + rollout*43, Unit: "tokens"},
+			&model.Signal{RecordType: model.RecordSignal, ID: fmt.Sprintf("checkout-%02d-cost", rollout+1), TrajectoryID: trajectoryID, Name: "cost_usd", Value: float64(82+lengths[rollout]*3+rollout*2) / 10000, Unit: "USD"},
 		)
 		if rollout == 5 || rollout == 9 {
 			class := "policy"
