@@ -161,8 +161,10 @@ surfaces, deep links, and `j`/`k` navigation.
 
 ## Details panel
 
-The selected turn or event comes first. Event-linked artifacts and verifier
-evidence follow. Trajectory-wide findings and artifacts belong in explicit tabs
+The trajectory outcome and structured verifier contract are persistent context:
+verifier type, rubric, verdict or score, reason, and cited evidence precede raw
+grader logs. The selected turn or event follows and remains directly navigable.
+Trajectory-wide findings and artifacts belong in explicit tabs
 or drawers so they do not push selected-event information below the fold.
 
 Suggested tabs:
@@ -175,7 +177,9 @@ Suggested tabs:
 ## Group workspace
 
 The group view is for choosing cohorts and representative trajectories before
-opening individual runs.
+opening individual runs. Collection trial mode exposes the canonical run →
+case/task → rollout group/variant → trajectory hierarchy. Headers aggregate only
+reported outcomes and metrics; missing values stay visibly unknown.
 
 - persistent cohort definition: run/case/sampling/checkpoint conditions
 - distributions for reward, pass rate, termination, length, tokens, latency,
@@ -184,6 +188,8 @@ opening individual runs.
 - shortcuts for best, worst, median, outliers, pass, fail, and infra failure
 - explicit comparison selection and saved column layout
 - compact behavioral paths as a secondary explanation, clearly labeled derived
+- adapter-declared scalar columns alongside pass, infrastructure, timeout, step,
+  and token summaries
 
 The current table supports ANDed plain-text, outcome, core-metric, and scalar
 signal filters. The active cohort query is URL-backed so reloads and copied

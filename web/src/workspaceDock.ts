@@ -9,12 +9,20 @@ export const pinnedDetailLaneId = (target: string) => target.startsWith("detail:
 export const panelIdForTarget = (target: string) => target === "rail" ? "collection" : target === "guide" || target === "settings" || target === "detail" ? target : target.startsWith("detail:") ? target : lanePanelId(target);
 export const targetFromPanelId = (id: string) => id === "collection" ? "rail" : id === "guide" || id === "settings" || id === "detail" ? id : id.startsWith("detail:") ? id : laneIdFromPanel(id);
 
+export function defaultWorkspaceModuleSizes(width: number, height: number) {
+  return {
+    collectionWidth: Math.max(220, Math.round(width * 0.18)),
+    guideWidth: Math.max(320, Math.round(width * 0.31)),
+    settingsHeight: Math.max(150, Math.round(height * 0.2)),
+  };
+}
+
 export function focusElementForTarget(target: string, railRef: RefObject<HTMLElement | null>): HTMLElement | null {
   const detailLane = pinnedDetailLaneId(target);
   if (target === "rail") return railRef.current;
   if (target === "guide") return document.querySelector<HTMLElement>(".workspace-guide");
   if (target === "settings") return document.querySelector<HTMLElement>(".workspace-settings");
-  if (target === "detail") return document.querySelector<HTMLElement>(".workspace-console:not([data-pinned='true'])");
+  if (target === "detail") return document.querySelector<HTMLElement>(".workspace-console[data-shared-detail='true']");
   if (detailLane) return document.querySelector<HTMLElement>(`.workspace-console[data-pinned='true'][data-detail-lane-id="${CSS.escape(detailLane)}"]`);
   return document.querySelector<HTMLElement>(`[data-lane-id="${CSS.escape(target)}"]`);
 }
@@ -28,21 +36,22 @@ export function addDefaultPanel(
   onDetailPosition: (position: "right" | "bottom") => void,
 ): void {
   const panels = api.panels;
+  const defaultSizes = defaultWorkspaceModuleSizes(api.width, api.height);
   const firstLane = workspace.lanes.map((item) => api.getPanel(lanePanelId(item.id))).find(Boolean);
   const center = firstLane ?? panels.find((item) => item.id !== "collection" && item.id !== "detail") ?? panels[0];
   if (kind === "collection") {
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Collection", params: { kind, label: "collection" }, initialWidth: Math.max(220, api.width * 0.24), ...(center ? { position: { referencePanel: center, direction: "left" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Collection", params: { kind, label: "collection" }, initialWidth: defaultSizes.collectionWidth, ...(center ? { position: { referencePanel: center, direction: "left" as const } } : {}) });
     return;
   }
   if (kind === "guide") {
     const anchor = api.getPanel("collection") ?? center;
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Guide", params: { kind, label: "guide" }, initialWidth: Math.max(320, api.width * 0.34), ...(anchor ? { position: { referencePanel: anchor, direction: "right" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Guide", params: { kind, label: "guide" }, initialWidth: defaultSizes.guideWidth, ...(anchor ? { position: { referencePanel: anchor, direction: "right" as const } } : {}) });
     return;
   }
   if (kind === "settings") {
     const detail = api.getPanel("detail");
     const anchor = detail ?? api.getPanel("guide") ?? api.getPanel("collection") ?? center;
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Settings", params: { kind, label: "settings" }, initialWidth: Math.max(280, api.width * 0.28), initialHeight: Math.max(180, api.height * 0.34), ...(anchor ? { position: { referencePanel: anchor, direction: detail ? "below" as const : "right" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Settings", params: { kind, label: "settings" }, initialWidth: Math.max(280, api.width * 0.28), initialHeight: defaultSizes.settingsHeight, ...(anchor ? { position: { referencePanel: anchor, direction: detail ? "below" as const : "right" as const } } : {}) });
     return;
   }
   if (kind === "detail") {
@@ -67,7 +76,7 @@ export function reconcileDockPanels(
 ): boolean {
   let changed = false;
   const desired = new Set([
-    ...(workspace.lanes.length ? ["detail"] : []),
+    ...(workspace.lanes.length && workspace.detailOpen ? ["detail"] : []),
     ...(workspace.guideOpen ? ["guide"] : []),
     ...(workspace.settingsOpen ? ["settings"] : []),
     ...(workspace.railExpanded ? ["collection"] : []),
@@ -93,7 +102,7 @@ export function reconcileDockPanels(
     changed = true;
     addDefaultPanel(api, workspace, "settings", "settings", undefined, onDetailPosition);
   }
-  if (workspace.lanes.length && !api.getPanel("detail")) {
+  if (workspace.lanes.length && workspace.detailOpen && !api.getPanel("detail")) {
     changed = true;
     addDefaultPanel(api, workspace, "detail", "detail", undefined, onDetailPosition);
   }

@@ -32,6 +32,10 @@ export interface WorkspaceState {
   guideOpen: boolean;
   settingsOpen: boolean;
   lanes: WorkspaceLane[];
+  /** The shared Detail module follows the active rollout unless pinned. */
+  detailOpen: boolean;
+  detailCompact: boolean;
+  detailPinned?: string;
   /** Rollout-pinned detail modules. Values are lane IDs. */
   details: string[];
   direction: WorkspaceDirection;
@@ -59,6 +63,8 @@ export function emptyWorkspace(): WorkspaceState {
     guideOpen: true,
     settingsOpen: true,
     lanes: [],
+    detailOpen: false,
+    detailCompact: false,
     details: [],
     direction: "rows",
     active: "rail",
@@ -108,12 +114,15 @@ export function normalizeWorkspace(value: unknown): WorkspaceState | undefined {
   const ids = new Set(lanes.map((lane) => lane.id));
   const details = Array.isArray(raw.details) ? [...new Set(raw.details.filter((id): id is string => typeof id === "string" && ids.has(id)))] : [];
   const detailTargets = new Set(details.map((id) => `detail:${id}`));
+  const detailOpen = typeof raw.detailOpen === "boolean" ? raw.detailOpen && lanes.length > 0 : lanes.length > 0;
+  const detailCompact = raw.detailCompact === true;
+  const detailPinned = typeof raw.detailPinned === "string" && ids.has(raw.detailPinned) ? raw.detailPinned : undefined;
   const railExpanded = raw.railExpanded !== false || lanes.length === 0;
   // Older saved/read links with lanes keep their existing topology. A truly
   // empty legacy workspace gets the new first-run Guide.
   const guideOpen = typeof raw.guideOpen === "boolean" ? raw.guideOpen : lanes.length === 0;
   const settingsOpen = typeof raw.settingsOpen === "boolean" ? raw.settingsOpen : lanes.length === 0;
-  const requestedActive = raw.active === "rail" || (raw.active === "detail" && lanes.length > 0) || (raw.active === "guide" && guideOpen) || (raw.active === "settings" && settingsOpen) || (typeof raw.active === "string" && (ids.has(raw.active) || detailTargets.has(raw.active))) ? raw.active : "rail";
+  const requestedActive = raw.active === "rail" || (raw.active === "detail" && detailOpen) || (raw.active === "guide" && guideOpen) || (raw.active === "settings" && settingsOpen) || (typeof raw.active === "string" && (ids.has(raw.active) || detailTargets.has(raw.active))) ? raw.active : "rail";
   const layout = input.version === 3 ? normalizeDockLayout(raw.layout) : undefined;
   return {
     version: 3,
@@ -124,6 +133,9 @@ export function normalizeWorkspace(value: unknown): WorkspaceState | undefined {
     guideOpen,
     settingsOpen,
     lanes,
+    detailOpen,
+    detailCompact,
+    ...(detailPinned ? { detailPinned } : {}),
     details,
     direction: raw.direction === "columns" ? "columns" : "rows",
     ...(typeof raw.reference === "string" && ids.has(raw.reference) ? { reference: raw.reference } : {}),
@@ -169,6 +181,7 @@ export function workspaceTopologyKey(workspace: WorkspaceState): string {
     rail: workspace.railExpanded,
     guide: workspace.guideOpen,
     settings: workspace.settingsOpen,
+    detail: workspace.detailOpen,
     lanes: workspace.lanes.map((lane) => lane.id).sort(),
     details: [...workspace.details].sort(),
   });

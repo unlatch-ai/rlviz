@@ -173,7 +173,9 @@ semantics pending broader real-format evidence. See `data-model.md` and
 
 The React application has three levels of research surfaces:
 
-- `App.tsx`: composes the workspace modules and command handlers
+- `App.tsx`: composes the workspace modules and command handlers, including the
+  collection evaluation hierarchy, source-backed aggregate headers, run facts,
+  maximum-fidelity resource labels, and outcome-first verifier summary
 - `workspaceController.ts`: reducer-backed logical workspace state, compact URL
   history, jumplist history, and topology-matched local geometry restore
 - `laneLoader.ts`: cancellable per-lane and per-slot loading, bounded off-lane

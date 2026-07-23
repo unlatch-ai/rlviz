@@ -4,6 +4,7 @@ import type { DockviewApi, DockviewReadyEvent, GroupNavigationDirection, Positio
 import type { WorkspaceState } from "./workspace";
 import {
   focusElementForTarget,
+  defaultWorkspaceModuleSizes,
   lanePanelId,
   panelIdForTarget,
   pinnedDetailTarget,
@@ -15,6 +16,7 @@ type WorkspaceChange = (update: (current: WorkspaceState) => WorkspaceState, sna
 
 export function useWorkspaceDock({
   workspace,
+  spotlightLane,
   workspaceRef,
   railRef,
   change,
@@ -22,6 +24,7 @@ export function useWorkspaceDock({
   trajectoryTitles,
 }: {
   workspace: WorkspaceState;
+  spotlightLane?: string;
   workspaceRef: MutableRefObject<WorkspaceState>;
   railRef: RefObject<HTMLElement | null>;
   change: WorkspaceChange;
@@ -37,6 +40,8 @@ export function useWorkspaceDock({
   const geometryFrame = useRef<number | undefined>(undefined);
   const persistenceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const persistedLayout = useRef<string | undefined>(workspace.layout ? JSON.stringify(workspace.layout) : undefined);
+  const spotlightLaneRef = useRef(spotlightLane);
+  spotlightLaneRef.current = spotlightLane;
   const cleanup = useRef<(() => void)[]>([]);
   const [ready, setReady] = useState(false);
   const [detailPosition, setDetailPosition] = useState<"right" | "bottom">(workspace.direction === "columns" ? "bottom" : "right");
@@ -90,7 +95,7 @@ export function useWorkspaceDock({
   }, [workspaceRef]);
 
   const persistLayout = useCallback((api = apiRef.current) => {
-    if (!api || syncing.current || !api.totalPanels) return;
+    if (!api || syncing.current || spotlightLaneRef.current || !api.totalPanels) return;
     const layout = api.toJSON();
     const serialized = JSON.stringify(layout);
     if (serialized === persistedLayout.current) return;
@@ -124,7 +129,8 @@ export function useWorkspaceDock({
     settling.current = true;
     syncing.current = true;
     try {
-      reconcileDockPanels(api, workspaceRef.current, setDetailPosition);
+      const current = workspaceRef.current;
+      reconcileDockPanels(api, spotlightLaneRef.current ? { ...current, guideOpen: false, settingsOpen: false } : current, setDetailPosition);
     } finally {
       syncing.current = false;
     }
@@ -191,7 +197,7 @@ export function useWorkspaceDock({
   useEffect(() => {
     const api = apiRef.current;
     if (api) reconcile(api);
-  }, [reconcile, workspace.details, workspace.guideOpen, workspace.settingsOpen, workspace.lanes, workspace.railExpanded]);
+  }, [reconcile, spotlightLane, workspace.detailOpen, workspace.details, workspace.guideOpen, workspace.settingsOpen, workspace.lanes, workspace.railExpanded]);
   useEffect(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -249,14 +255,57 @@ export function useWorkspaceDock({
       settings.api.moveTo({ group: lanes[0]!.api.group, position: "bottom" });
       detail.api.moveTo({ group: lanes[0]!.api.group, position: "right" });
       lanes[1]!.api.moveTo({ group: lanes[0]!.api.group, position: "bottom" });
-      collection.api.group.api.setSize({ width: Math.max(240, Math.round(api.width * 0.22)) });
-      guide.api.group.api.setSize({ width: Math.max(360, Math.round(api.width * 0.34)) });
-      settings.api.group.api.setSize({ height: Math.max(180, Math.round(api.height * 0.34)) });
+      const defaultSizes = defaultWorkspaceModuleSizes(api.width, api.height);
+      collection.api.group.api.setSize({ width: defaultSizes.collectionWidth });
+      guide.api.group.api.setSize({ width: defaultSizes.guideWidth });
+      settings.api.group.api.setSize({ height: defaultSizes.settingsHeight });
       setDetailPosition("right");
       requestAnimationFrame(() => flushPersistence(api));
     };
     requestAnimationFrame(arrange);
   }, [flushPersistence, workspaceRef]);
+
+  const arrangeSpotlight = useCallback((laneId: string) => {
+    let attempts = 0;
+    const arrange = () => {
+      const api = apiRef.current;
+      const active = api?.getPanel(lanePanelId(laneId));
+      const collection = api?.getPanel("collection");
+      const detail = api?.getPanel("detail");
+      if (!api || !active || !collection || !detail) {
+        if (++attempts < 10) requestAnimationFrame(arrange);
+        return;
+      }
+      active.api.moveTo({ group: collection.api.group, position: "right" });
+      detail.api.moveTo({ group: active.api.group, position: "right" });
+      const others = workspaceRef.current.lanes.filter((lane) => lane.id !== laneId).map((lane) => api.getPanel(lanePanelId(lane.id))).filter((panel): panel is NonNullable<typeof panel> => !!panel);
+      others.forEach((panel, index) => {
+        panel.api.moveTo({ group: index ? others[index - 1].api.group : active.api.group, position: "bottom" });
+        panel.api.group.api.setSize({ height: 72 });
+      });
+      collection.api.group.api.setSize({ width: Math.max(150, Math.round(api.width * 0.14)) });
+      detail.api.group.api.setSize({ width: Math.max(270, Math.round(api.width * 0.29)) });
+      active.api.group.api.setSize({ height: Math.max(300, api.height - Math.max(0, others.length) * 72) });
+      active.api.setActive();
+      setDetailPosition("right");
+      requestAnimationFrame(() => flushPersistence(api));
+    };
+    requestAnimationFrame(arrange);
+  }, [flushPersistence, workspaceRef]);
+
+  const restoreLayout = useCallback((layout: WorkspaceState["layout"]) => {
+    if (!layout) return;
+    let attempts = 0;
+    const restore = () => {
+      const api = apiRef.current;
+      if (!api) { if (++attempts < 10) requestAnimationFrame(restore); return; }
+      syncing.current = true;
+      try { api.fromJSON(layout); persistedLayout.current = JSON.stringify(layout); }
+      finally { syncing.current = false; }
+      reconcile(api);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(restore));
+  }, [reconcile]);
 
   const moveActiveModule = useCallback((key: string) => {
     const api = apiRef.current;
@@ -317,6 +366,8 @@ export function useWorkspaceDock({
     persistLayout,
     arrangeLanes,
     arrangeWelcomeLayout,
+    arrangeSpotlight,
+    restoreLayout,
     moveActiveModule,
     resizeNearest,
     activateTarget,

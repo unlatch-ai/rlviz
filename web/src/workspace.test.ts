@@ -36,6 +36,18 @@ describe("workspace arrangements", () => {
     expect(normalized.active).toBe(`detail:${id}`);
   });
 
+  it("normalizes the shared detail state and clears orphaned pins", () => {
+    const id = laneId("source", "one");
+    const lane = { id, sourceId: "source", trajectoryId: "one", band: "focus" as const, selected: 0, depth: 1, fidelity: 1, axis: { start: 0, end: 1 }, descentStack: [] };
+    const normalized = normalizeWorkspace({ ...emptyWorkspace(), lanes: [lane], detailOpen: true, detailCompact: true, detailPinned: id, active: "detail" })!;
+    expect(normalized).toMatchObject({ detailOpen: true, detailCompact: true, detailPinned: id, active: "detail" });
+
+    const orphaned = normalizeWorkspace({ ...normalized, lanes: [], detailPinned: id })!;
+    expect(orphaned.detailOpen).toBe(false);
+    expect(orphaned.detailPinned).toBeUndefined();
+    expect(orphaned.active).toBe("rail");
+  });
+
   it("uses Surface as context's effective depth without discarding stored focus depth", () => {
     const lane = { id: "lane", sourceId: "source", trajectoryId: "one", band: "context" as const, selected: 0, depth: 3, fidelity: 3, axis: { start: 0, end: 10 }, descentStack: [] };
     expect(effectiveDepth(lane)).toBe(1);

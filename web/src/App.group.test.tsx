@@ -23,6 +23,35 @@ const comparison: ComparisonResponse = {
 describe("Browse Read Compare flow", () => {
   afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
 
+  it("groups trials by task and variant with source-backed aggregate metrics", async () => {
+    const rows: BrowseResponse = {
+      sources: [{ id: "source-1", path: "/tmp/eval.ndjson", index_state: "complete" }], count: 3,
+      trajectories: [
+        { source_id: "source-1", source_name: "eval.ndjson", run_name: "Checkout evaluation", case_name: "Saved card checkout", group_name: "Deliberate", trajectory: { id: "pass-1", group_id: "deliberate", status: "completed" }, metrics: { event_count: 10, pass: true, signals: { token_count: 120, cost_usd: 0.012 } } },
+        { source_id: "source-1", source_name: "eval.ndjson", run_name: "Checkout evaluation", case_name: "Saved card checkout", group_name: "Deliberate", trajectory: { id: "fail-1", group_id: "deliberate", status: "failed" }, metrics: { event_count: 14, pass: false, signals: { token_count: 180, cost_usd: 0.018 } } },
+        { source_id: "source-1", source_name: "eval.ndjson", run_name: "Checkout evaluation", case_name: "Saved card checkout", group_name: "Direct", trajectory: { id: "infra-1", group_id: "direct", status: "failed", termination: "infrastructure_timeout" }, metrics: { event_count: 4, signals: { token_count: 40, cost_usd: 0.004, failure_class: "infrastructure" } } },
+      ],
+    };
+    const provider: ViewerProvider = {
+      async loadInitial() { return { trajectory: { ...trajectoryPayload("pass-1").trajectory, events: trajectoryPayload("pass-1").events }, isSample: false, presentation: { api_version: "rlviz.dev/v1alpha1", fields: { "signal:cost_usd": { label: "cost" } }, scalars: { "signal:cost_usd": { format: "number", precision: 3, unit: "USD" } }, group: { columns: ["signal:cost_usd"] } } }; },
+      async loadBrowse() { return rows; },
+      async loadTrajectory() { return { trajectory: { ...trajectoryPayload("pass-1").trajectory, events: trajectoryPayload("pass-1").events }, isSample: false }; },
+      async loadAnalysis() { return { analysis: { api_version: "v1", provenance: { name: "test", version: "1", digest: "x", input_digest: "y" } }, cached: false, analyzed_at: "now" }; },
+      async loadComparison() { return comparison; },
+      async loadArtifactContent() { throw new Error("unused"); },
+    };
+    render(<App provider={provider} />);
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
+    fireEvent.click(screen.getByRole("button", { name: "trials" }));
+    expect(screen.getByRole("group", { name: "Saved card checkout" })).toHaveTextContent("Checkout evaluation");
+    expect(screen.getByRole("group", { name: "Deliberate" })).toHaveTextContent("1/2 pass");
+    expect(screen.getByRole("group", { name: "Deliberate" })).toHaveTextContent("avg 12 steps");
+    expect(screen.getByRole("group", { name: "Deliberate" })).toHaveTextContent("avg 150 tokens");
+    expect(screen.getByRole("group", { name: "Deliberate" })).toHaveTextContent("cost avg 0.015 USD");
+    expect(screen.getByRole("group", { name: "Direct" })).toHaveTextContent("1 infra");
+    expect(screen.getByRole("group", { name: "Direct" })).toHaveTextContent("1 timeout");
+  });
+
   it("loads the daemon collection and composes a two-lane reference arrangement", async () => {
     window.history.replaceState({}, "", "/#token=secret");
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
@@ -213,9 +242,11 @@ describe("Browse Read Compare flow", () => {
 		// `a` piles lanes in while focus stays in the collection.
 		fireEvent.keyDown(window, { key: "Tab" }); fireEvent.keyDown(window, { key: "Tab" }); fireEvent.keyDown(window, { key: "j" }); fireEvent.keyDown(window, { key: "a" });
 		await waitFor(() => expect(screen.getAllByRole("main", { name: "Read trajectory" })).toHaveLength(2));
+		expect(document.querySelector(".instrument-shell")).toHaveAttribute("data-active-zone", "rail");
 		// add keeps the collection focused, so the next add needs no Tab round-trip
 		fireEvent.keyDown(window, { key: "j" }); fireEvent.keyDown(window, { key: "a" });
 		await screen.findByRole("main", { name: "Context lane third" });
+		expect(document.querySelector(".instrument-shell")).toHaveAttribute("data-active-zone", "rail");
 		fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
 		fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
 		fireEvent.keyDown(window, { key: "n" });
@@ -236,6 +267,10 @@ describe("Browse Read Compare flow", () => {
 		fireEvent.keyDown(window, { key: "t" }); fireEvent.keyDown(window, { key: "Tab" });
 		expect(screen.queryByRole("main", { name: "Browse trajectories" })).not.toBeInTheDocument();
 		expect(document.querySelector(".instrument-shell")).not.toHaveAttribute("data-active-zone", "rail");
+		// Detail is now independently closeable. Closing it returns focus to the
+		// rollout; closing the final rollout then restores the collection.
+		fireEvent.keyDown(window, { key: "x" });
+		expect(document.querySelector(".instrument-shell")).toHaveAttribute("data-active-zone", "source-1:candidate");
 		fireEvent.keyDown(window, { key: "x" });
 		expect(await screen.findByRole("main", { name: "Browse trajectories" })).toBeInTheDocument();
 		expect(document.querySelector(".instrument-shell")).toHaveAttribute("data-active-zone", "rail");

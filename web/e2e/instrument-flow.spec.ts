@@ -69,18 +69,18 @@ test("Browse into a multi-lane workspace preserves the instrument invariants", a
   await expect(page.getByRole("main", { name: "Browse trajectories" })).toBeVisible();
   await expect(page.getByRole("option").first()).toContainText("candidate");
   await expect(page.getByRole("listbox", { name: "Trajectory collection" })).toHaveAttribute("data-fidelity-level", "L1");
-  await expect(page.locator(".fidelity-readout b")).toHaveText("glyphs");
+  await expect(page.locator(".fidelity-readout b")).toHaveText("signals");
   await expect(page.getByRole("option").first()).toHaveAttribute("data-columns", "false");
 
   await page.keyboard.press("]");
-  await expect(page.locator(".fidelity-readout b")).toHaveText("detail");
+  await expect(page.locator(".fidelity-readout b")).toHaveText("summary");
   await expect(page.getByRole("option").first()).toHaveAttribute("data-columns", "true");
   await page.keyboard.press("[");
-  await expect(page.locator(".fidelity-readout b")).toHaveText("glyphs");
+  await expect(page.locator(".fidelity-readout b")).toHaveText("signals");
   await page.keyboard.press("[");
-  await expect(page.locator(".fidelity-readout b")).toHaveText("hairline");
+  await expect(page.locator(".fidelity-readout b")).toHaveText("compact");
   await page.keyboard.press("]");
-  await expect(page.locator(".fidelity-readout b")).toHaveText("glyphs");
+  await expect(page.locator(".fidelity-readout b")).toHaveText("signals");
   await page.keyboard.press("Space");
   await expect(page.getByRole("main", { name: "Read trajectory" })).toHaveAttribute("data-trajectory", "candidate");
   await page.keyboard.press("Tab");
@@ -136,7 +136,10 @@ test("theme control switches computed high-contrast palette values", async ({ pa
 test("collection trial groups keep rollout options and the keybar in view", async ({ page }) => {
   await page.getByRole("button", { name: "trials" }).click();
   await expect(page.getByRole("main", { name: "Browse trajectories" })).toHaveAttribute("data-collection-view", "trials");
-  await expect(page.getByRole("group", { name: "policy demo" })).toContainText("3 rollouts");
+  await expect(page.locator(".collection-evaluation-summary")).toHaveAttribute("aria-label", "Evaluation summary");
+  await expect(page.locator(".rail-evaluation-case")).toHaveCount(1);
+  await expect(page.locator(".rail-evaluation-variant")).toHaveCount(1);
+  await expect(page.locator(".rail-evaluation-variant")).toContainText("3 rollouts");
   await expect(page.getByRole("option")).toHaveCount(3);
   const layout = await page.locator(".workspace-rack").evaluate((rack) => {
     const keybar = rack.querySelector(".keybar")!.getBoundingClientRect();

@@ -14,8 +14,8 @@ work, and `later` is an intended capability without a committed release.
 | Open a local trace | Run `rlviz open PATH`; inspect it in a loopback-only viewer without mutating or uploading it | current |
 | Resume or learn without a source | Run `rlviz` or `rlviz open`; restore the last usable source or open bundled samples on first use | current |
 | Open in the browser | Drop a modest trace into the browser viewer; parsing and indexing stay in the tab | current |
-| Browse a collection | Filter rollouts, change visual fidelity, switch between a flat rollout list and trial groups, and open or add a rollout | current |
-| Inspect a rollout | Move through events and landmarks, change depth and fidelity, adjust the timeline viewport, and inspect normalized and raw source data | current |
+| Browse a collection | Filter rollouts, change visual fidelity, switch between a flat list and run → task → variant → rollout evaluation hierarchy, and open or add a rollout | current |
+| Inspect a rollout | Read compact run facts, move through events and landmarks, change depth and fidelity, adjust the timeline viewport, and inspect normalized and raw source data | current |
 | Build a workspace | Arrange rollout modules in rows or columns, move and resize modules, keep context lanes, and share the logical workspace without viewport-specific geometry | current |
 | Keep one rollout in detail | Open a rollout-pinned detail module, navigate it directly, and inspect other lanes without replacing it | current |
 | Triage a rollout group | Inspect outcome and metric distributions, sort or filter trajectories, and jump to representative or failing rollouts | current |
@@ -42,7 +42,8 @@ work, and `later` is an intended capability without a committed release.
 
 - `current` Keyboard-first filtering and rollout selection with visible-selection follow.
 - `current` Wheel scrolling inside the collection module.
-- `current` Flat rollout view and trial-grouped view.
+- `current` Flat rollout view and canonical run → task → variant → rollout evaluation hierarchy.
+- `current` Source-backed pass, infrastructure, timeout, step, token, and adapter-declared scalar aggregates on evaluation headers.
 - `current` Three truthful collection fidelity levels: hairline, glyphs, and detail.
 - `current` Outcome, reward, pass, error, token, latency, retry, and termination signals when present.
 - `later` Saved collection presets for recurring evaluation suites.
@@ -52,6 +53,9 @@ work, and `later` is an intended capability without a committed release.
 - `current` Four semantic depths: overview, episodes, events, and source.
 - `current` Independent zoom and timeline viewport controls with click-to-center, drag-to-pan, and edge resizing.
 - `current` Overview fidelity from hairline to every visible step, including tool-call names.
+- `current` Compact model, variant, outcome, reward, step, tool, error, token, and duration run facts when supplied.
+- `current` Per-step token, duration, context-resource, and reward facts at maximum fidelity when supplied.
+- `current` Outcome-first verifier summary with type, rubric, verdict, reason, evidence, and raw grader-event access.
 - `current` Event, error, reward/grader, context, finding, artifact, and marker navigation.
 - `current` Selected-event detail with payload, provenance, signals, and artifacts.
 - `current` Pinned detail modules tied to one rollout.
@@ -63,7 +67,7 @@ work, and `later` is an intended capability without a committed release.
 - `current` Docked Guide module backed by the same agent-readable CLI and public documentation.
 - `current` Rows-first additional rollouts, optional columns, pointer docking, and keyboard move/resize modes.
 - `current` `Alt` + arrow spatial navigation and `Tab` cycling.
-- `current` Active-module shortcuts in the docked Guide, without consuming permanent viewport height.
+- `current` Active-module shortcuts in the persistent bottom keybar; the Guide contains the complete default keybinding reference.
 - `current` Customizable keymap storage and toggleable move/resize modes.
 - `current` Docked Settings module for appearance, browser data loading, and adapter guidance.
 - `current` Shareable logical workspace links and bounded, device-local dock geometry.

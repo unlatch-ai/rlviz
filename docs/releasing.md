@@ -3,7 +3,8 @@
 RLViz releases are built from versioned Git tags by
 `.github/workflows/release.yml`. The workflow runs the full checks, builds four
 native archives with GoReleaser, publishes SHA-256 checksums, creates GitHub
-artifact attestations, and attaches a generated Homebrew formula.
+artifact attestations, attaches a generated Homebrew formula to a draft, and
+publishes the complete immutable release.
 
 ## One-time setup
 

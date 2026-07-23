@@ -69,3 +69,18 @@ func TestWorkspaceHandlerRejectsInvalidAndUnauthenticatedInput(t *testing.T) {
 		t.Fatalf("unauthorized status=%d", response.Code)
 	}
 }
+
+func TestNormalizeWorkspaceClearsOrphanedSharedDetail(t *testing.T) {
+	workspace, err := normalizeWorkspace(Workspace{
+		DetailOpen:    true,
+		DetailCompact: true,
+		DetailPinned:  "missing",
+		Active:        "detail",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace.DetailOpen || workspace.DetailPinned != "" {
+		t.Fatalf("orphaned shared detail survived normalization: %#v", workspace)
+	}
+}

@@ -287,7 +287,7 @@ func getWorkspace(ctx context.Context, client daemon.Client, metadata daemon.Met
 }
 
 func newWorkspace(sourceID string, trajectories, details []string, grouping string) server.Workspace {
-	workspace := server.Workspace{Version: 3, RailExpanded: true, CollectionView: grouping, GuideOpen: len(trajectories) == 0, SettingsOpen: true, Direction: "rows", Active: "rail", Lanes: []server.WorkspaceLane{}, Details: []string{}}
+	workspace := server.Workspace{Version: 3, RailExpanded: true, CollectionView: grouping, GuideOpen: len(trajectories) == 0, SettingsOpen: true, DetailOpen: len(trajectories) > 0, Direction: "rows", Active: "rail", Lanes: []server.WorkspaceLane{}, Details: []string{}}
 	for index, trajectoryID := range trajectories {
 		band := "focus"
 		if index >= 2 {

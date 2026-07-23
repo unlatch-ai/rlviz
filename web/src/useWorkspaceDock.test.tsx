@@ -28,6 +28,7 @@ function fakeApi() {
     clear: vi.fn(),
     fromJSON: vi.fn(),
     getPanel: vi.fn(() => undefined),
+    adjacentGroupInDirection: vi.fn(() => undefined),
     onDidActivePanelChange: vi.fn((listener) => { activeListener = listener; return { dispose: activeDispose }; }),
     onDidLayoutChange: vi.fn((listener) => { layoutListener = listener; return { dispose: layoutDispose }; }),
     toJSON: vi.fn(() => ({ grid: { root: { type: "leaf", data: { views: [] as string[] } } }, panels: {}, activeGroup: undefined })),
@@ -114,6 +115,22 @@ describe("useWorkspaceDock lifecycle", () => {
     });
     const update = view.change.mock.calls.at(-1)?.[0];
     expect(update?.(emptyWorkspace()).active).toBe("detail");
+  });
+
+  it("activates the spatially adjacent module for an arrow direction", () => {
+    const view = renderDock(emptyWorkspace());
+    const dock = fakeApi();
+    const group = { api: { boundingBox: { top: 0, left: 0, width: 100, height: 100 } } };
+    const current = { id: "collection", api: { group, setActive: vi.fn(), setTitle: vi.fn() } };
+    const setActive = vi.fn();
+    const detail = { id: "detail", api: { setActive } };
+    dock.api.getPanel.mockReturnValue(current as never);
+    dock.api.adjacentGroupInDirection.mockReturnValue({ activePanel: detail } as never);
+    act(() => view.result.current.onReady({ api: dock.api } as never));
+
+    expect(view.result.current.activateAdjacent("ArrowRight")).toBe("detail");
+    expect(dock.api.adjacentGroupInDirection).toHaveBeenCalledWith(group, "right");
+    expect(setActive).toHaveBeenCalledOnce();
   });
 
   it("coalesces rapid layout geometry and persists only after the layout settles", () => {

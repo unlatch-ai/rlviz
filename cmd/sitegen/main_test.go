@@ -80,7 +80,7 @@ func TestLayoutIncludesPublicMetadata(t *testing.T) {
 	for _, want := range []string{
 		`<link rel="canonical" href="https://rlviz.dev/docs.html">`,
 		`<link rel="icon" href="/favicon.svg" type="image/svg+xml">`,
-		`<meta property="og:image" content="https://rlviz.dev/rlviz-social.png">`,
+		`<meta property="og:image" content="https://rlviz.dev/rlviz-social.png?v=2">`,
 		`<meta name="twitter:card" content="summary_large_image">`,
 	} {
 		if !strings.Contains(document, want) {
