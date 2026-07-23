@@ -58,6 +58,16 @@ function eventReward(event: TrajectoryEvent): number | undefined {
   return undefined;
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function concise(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
 function fakeBrowse(trajectory: Trajectory): BrowseResponse {
   return { sources: [{ id: "sample" }], count: 1, trajectories: [{
     source_id: "sample", source_name: "sample", case_name: trajectory.name, group_name: trajectory.group_id,
@@ -220,6 +230,18 @@ function ShapeStrip({ trajectory, selected, hover, axis, compact = false, fideli
   const rewardMin = Math.min(0, ...rewards.map((point) => point.value)), rewardMax = Math.max(1, ...rewards.map((point) => point.value));
   const rewardPath = rewards.map((point, index) => `${index ? "L" : "M"}${point.x},${182 - ((point.value - rewardMin) / Math.max(1, rewardMax - rewardMin)) * 26}`).join(" ");
   const selectedX = x(events[selected]?.sequence ?? min);
+  const labelCandidates = fidelity === 2 && !compact ? events.map((event, index) => ({ event, index, x: x(event.sequence) }))
+    .filter(({ event, index }) => event.sequence >= axis.start && event.sequence <= axis.end && (index === selected || event.kind === "tool" || event.kind === "grader" || event.kind === "error")) : [];
+  const timelineLabels = labelCandidates.reduce<Array<{ event: TrajectoryEvent; index: number; x: number }>>((labels, candidate) => {
+    if (candidate.index === selected) return labels.some((label) => label.index === selected) ? labels : [...labels, candidate];
+    if (labels.some((label) => Math.abs(label.x - candidate.x) < 96)) return labels;
+    return [...labels, candidate];
+  }, []).sort((left, right) => left.x - right.x);
+  const timelineLabel = (event: TrajectoryEvent) => {
+    const tools = eventToolNames(event);
+    const text = tools[0] ?? event.title ?? event.summary ?? (event.kind === "grader" ? concise(record(event.output).verdict) : undefined) ?? eventText(event);
+    return text.length > 24 ? `${text.slice(0, 23)}…` : text;
+  };
   return <section ref={containerRef} className={`shape-strip ${compact || fidelity === 0 ? "compact" : ""} fidelity-${fidelity}`} aria-label={label ?? "Trajectory shape"} data-selected-x={selectedX.toFixed(4)} data-visible-events={visibleCount} data-strip-mode={layout.mode} data-fidelity-level={`L${fidelity}`}>
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} onMouseLeave={() => onHover(undefined)} onMouseMove={(pointer) => {
       const rect = pointer.currentTarget.getBoundingClientRect();
@@ -238,6 +260,10 @@ function ShapeStrip({ trajectory, selected, hover, axis, compact = false, fideli
       })}
       {layout.mode === "binned" && layout.bins.map((bin, index) => bin.count ? <rect key={`b${index}`} className={`density-bin ${bin.tools * 2 > bin.count ? "tool-heavy" : ""}`} x={bin.x0} y={baseline - 4 - Math.round((bin.count / layout.peak) * 20)} width={Math.max(1, bin.x1 - bin.x0 - 1)} height={4 + Math.round((bin.count / layout.peak) * 20)} /> : null)}
       {layout.mode === "binned" ? layout.landmarks.map(markFor) : layout.marks.map(markFor)}
+      {timelineLabels.map(({ event, index, x: labelX }, position) => <g key={`label:${event.id}`} className={`timeline-event-label ${index === selected ? "selected" : ""}`} data-event-index={index}>
+        <line x1={labelX} x2={labelX} y1={position % 2 ? 77 : 58} y2={baseline - 29} />
+        <text x={Math.max(42, Math.min(width - 42, labelX))} y={position % 2 ? 75 : 56} textAnchor="middle"><title>{event.kind} · {timelineLabel(event)}</title>{timelineLabel(event)}</text>
+      </g>)}
       {!compact && fidelity > 0 && <>{events.map((event) => event.context?.input_tokens !== undefined && event.context.capacity && event.sequence >= axis.start && event.sequence <= axis.end ? <rect key={`ctx:${event.id}`} className="context-pressure" x={x(event.sequence) - 2} y={153 - 25 * event.context.input_tokens / event.context.capacity} width="4" height={25 * event.context.input_tokens / event.context.capacity} /> : null)}<path className="reward-curve" d={rewardPath} /></>}
       {hover !== undefined && events[hover] && <line className="skimmer-line" x1={x(events[hover].sequence)} x2={x(events[hover].sequence)} y1="5" y2={height - 5} />}
       <line data-testid="playhead" className="playhead" x1={selectedX} x2={selectedX} y1="5" y2={height - 5} />
@@ -377,8 +403,9 @@ function LaneTrack({ lane, data, metadata, active, reference, hover, onActivate,
   const episodes = trajectory ? episodesFor(trajectory.events) : [];
   const selectedEpisode = episodeIndexForEvent(episodes, selected);
   const episode = episodes[selectedEpisode];
+  const outcomes = trajectory ? judgesFor(trajectory).slice(0, 2) : [];
   return <main tabIndex={0} aria-label={lane.band === "focus" ? "Read trajectory" : `Context lane ${lane.trajectoryId}`} className={`lane-track depth-${depth} fidelity-${lane.fidelity} ${lane.band}-lane ${active ? "active-zone" : ""} ${reference ? "reference-lane" : ""}`} data-lane-id={lane.id} data-trajectory={lane.trajectoryId} data-depth={depth} data-stored-depth={lane.depth} data-fidelity={fidelityNames[lane.fidelity]} data-episode={episode?.key ?? ""} data-axis-start={lane.axis.start.toFixed(4)} data-axis-end={lane.axis.end.toFixed(4)} onFocus={onActivate} onClick={onActivate}>
-    <header><span title={lane.trajectoryId}><b>{metadata?.title ?? lane.trajectoryId}</b>{metadata?.description && <small>{metadata.description}</small>}{reference && <small>reference</small>}</span><span className="lane-state">{["", "overview", "episodes", "events", "raw"][depth]}{depth === 1 ? ` · ${fidelityNames[lane.fidelity]} · [ ]` : ""}</span></header>
+    <header><span title={lane.trajectoryId}><b>{metadata?.title ?? lane.trajectoryId}</b>{metadata?.description && <small>{metadata.description}</small>}{reference && <small>reference</small>}</span>{outcomes.length > 0 && <span className="lane-outcome" aria-label="Rollout outcome">{outcomes.map((outcome) => <small key={outcome.label}><i>{outcome.label}</i> {outcome.value}</small>)}</span>}<span className="lane-state">{["", "overview", "episodes", "events", "raw"][depth]}{depth === 1 ? ` · ${fidelityNames[lane.fidelity]} · [ ]` : ""}</span></header>
     <div className="lane-body">{!trajectory ? <div className="lane-loading">loading trajectory…</div> : depth === 1 ? <><ShapeStrip trajectory={trajectory} selected={selected} hover={hover} axis={lane.axis} fidelity={lane.fidelity} compact={lane.band === "context"} label={lane.band === "focus" ? "Trajectory shape" : `Trajectory shape ${lane.trajectoryId}`} onSelect={onSelect} onHover={onHover} />{lane.fidelity === 2 && lane.band === "focus" && <OverviewSteps trajectory={trajectory} axis={lane.axis} selected={selected} onSelect={onSelect} />}</> : depth === 2 ? <EpisodeStrip trajectory={trajectory} lane={lane} episodes={episodes} selectedEpisode={selectedEpisode} onDescend={(target) => onDescend(target)} /> : <><ShapeStrip trajectory={trajectory} selected={selected} hover={hover} axis={lane.axis} compact label="Compressed trajectory shape" onSelect={onSelect} onHover={onHover} onAscend={onAscend} />{depth === 3 && episode && <ScopedEvents trajectory={trajectory} episode={episode} selected={selected} onSelect={onSelect} />}{depth === 4 && trajectory.events[selected] && <SourceRecord event={trajectory.events[selected]} />}</>}</div>
     {trajectory && <AxisNavigator trajectory={trajectory} axis={lane.axis} selected={selected} onChange={onAxisChange} />}
     {trajectory && hover !== undefined && depth === 1 && lane.band === "focus" && <aside className="skim-preview" role="status"><b>#{trajectory.events[hover].sequence} · {trajectory.events[hover].kind}</b><span>{eventText(trajectory.events[hover])}</span></aside>}
@@ -396,18 +423,48 @@ function judgesFor(trajectory: Trajectory): Array<{ label: string; value: string
   return judges;
 }
 
+function verifiersFor(trajectory: Trajectory): Array<{ event: TrajectoryEvent; name: string; type?: string; rubric?: string; verdict?: string; score?: string; reason?: string; evidence: string[] }> {
+  return trajectory.events.filter((event) => event.kind === "grader").map((event) => {
+    const input = record(event.input); const output = record(event.output); const metadata = record(event.metadata);
+    const evidence = Array.isArray(output.evidence) ? output.evidence.map(String) : [];
+    return {
+      event,
+      name: concise(metadata.grader) ?? concise(metadata.verifier) ?? event.title ?? "verifier",
+      type: concise(metadata.verifier_type) ?? concise(metadata.grader_type) ?? concise(metadata.type) ?? (event.alignment_key?.split(":")[1] || undefined),
+      rubric: concise(input.rubric) ?? concise(metadata.rubric),
+      verdict: concise(output.verdict) ?? concise(output.result),
+      score: concise(output.score),
+      reason: concise(output.reason) ?? concise(output.explanation),
+      evidence,
+    };
+  });
+}
+
+function VerifierSummary({ trajectory, onSelect }: { trajectory: Trajectory; onSelect: (index: number) => void }) {
+  const verifiers = verifiersFor(trajectory);
+  if (!verifiers.length) return null;
+  return <section className="verifier-summary" aria-label="Verifier and outcome">
+    <header><b>Verifier and outcome</b><small>{verifiers.length} recorded evaluation{verifiers.length === 1 ? "" : "s"}</small></header>
+    {verifiers.map(({ event, name, type, rubric, verdict, score, reason, evidence }) => <button key={event.id} onClick={() => onSelect(trajectory.events.indexOf(event))}>
+      <span className="verifier-result"><small>{type ?? "verifier"}</small><strong>{verdict ?? "recorded"}{score ? ` · ${score}` : ""}</strong></span>
+      <span><b>{name}</b>{rubric && <small><i>Rubric</i>{rubric}</small>}{reason && <small><i>Reason</i>{reason}</small>}{evidence.length > 0 && <small><i>Evidence</i>{evidence.join(", ")}</small>}</span>
+    </button>)}
+  </section>;
+}
+
 function Console({ workspace, lane, data, metadata, breadcrumb, resizeMode, dockPosition, pinned = false, active = false, onMetadata, onSelect, onHelp, onActivate }: {
   workspace: WorkspaceState; lane?: WorkspaceLane; data?: LaneData; metadata?: EditableMetadata; breadcrumb: string; resizeMode: boolean; dockPosition: "right" | "bottom"; pinned?: boolean; active?: boolean; onMetadata: (value: EditableMetadata) => void; onSelect: (index: number) => void; onHelp: () => void; onActivate: () => void;
 }) {
   const trajectory = data?.trajectory; const current = trajectory?.events[Math.min(lane?.selected ?? 0, Math.max(0, trajectory.events.length - 1))];
-  const around = 2;
-  const detailRows = trajectory && current ? trajectory.events.slice(Math.max(0, trajectory.events.indexOf(current) - around), Math.min(trajectory.events.length, trajectory.events.indexOf(current) + around + 1)) : [];
+  const selectedRef = useRef<HTMLButtonElement>(null);
+  const detailRows = trajectory?.events ?? [];
+  useEffect(() => { selectedRef.current?.scrollIntoView?.({ block: "nearest" }); }, [current?.id]);
   return <section className={`workspace-console ${active ? "active-zone" : ""}`} tabIndex={0} onFocus={() => { if (active) onActivate(); }} onPointerDown={onActivate} aria-label={pinned ? `Detail for ${lane?.trajectoryId ?? "rollout"}` : "Workspace console"} data-detail-lane-id={lane?.id} data-pinned={pinned ? "true" : "false"} data-resize-mode={resizeMode ? "true" : "false"} data-dock-position={dockPosition}>
     <header className="console-header">{trajectory ? <EditableHeader kind="trajectory" fallbackTitle={trajectory.name ?? trajectory.id} metadata={metadata} context={breadcrumb} onSave={onMetadata} /> : <div><h2>No lane selected</h2><p className="workspace-breadcrumb">{breadcrumb}</p></div>}
       {trajectory && <div className="judge-list">{judgesFor(trajectory).map((judge, index) => <button key={`${judge.label}:${index}`} className={/false|fail/i.test(judge.value) ? "failure" : judge.label === "verifier" && /true|pass/i.test(judge.value) ? "verifier-pass" : ""} onClick={() => { const found = trajectory.events.findIndex((event) => event.id === judge.eventId); if (found >= 0) onSelect(found); }}><small>{judge.label}</small><b>{judge.value}</b></button>)}</div>}
       <div className="console-meta">{pinned && <strong>pinned rollout</strong>}<span>reference: <b data-testid="reference-name">{workspace.reference ? workspace.lanes.find((item) => item.id === workspace.reference)?.trajectoryId ?? "none" : "none"}</b></span>{resizeMode && <strong>resize mode · arrows · Esc</strong>}<button onClick={onHelp}>?</button></div>
     </header>
-    <section className="detail-region" aria-label="Selected moment">{trajectory ? detailRows.map((event) => <button key={event.id} className={`moment ${event.id === current?.id ? "selected" : ""}`} onClick={() => onSelect(trajectory.events.indexOf(event))}><span className="address">{event.sequence}</span><span className="kind-glyph">{glyphForKind(event.kind)}</span><span className="moment-copy"><small>{event.kind}</small><b>{eventText(event)}</b>{event.id === current?.id && <pre>{preview(eventDetail(event), 700)}</pre>}{event.id === current?.id && <em>source · {event.source?.path ?? "canonical record"}{event.source?.line ? `:${event.source.line}` : ""}</em>}</span></button>) : <div className="detail-empty"><b>Open a rollout from the collection.</b><small>Enter opens · A adds a lane</small></div>}</section>
+    <section className="detail-region" aria-label="Selected moment" tabIndex={0} data-event-count={detailRows.length}>{trajectory ? <><VerifierSummary trajectory={trajectory} onSelect={onSelect} />{detailRows.map((event) => <button ref={event.id === current?.id ? selectedRef : undefined} key={event.id} className={`moment ${event.id === current?.id ? "selected" : ""}`} onClick={() => onSelect(trajectory.events.indexOf(event))}><span className="address">{event.sequence}</span><span className="kind-glyph">{glyphForKind(event.kind)}</span><span className="moment-copy"><small>{event.kind}</small><b>{eventText(event)}</b>{event.id === current?.id && <pre>{preview(eventDetail(event), 700)}</pre>}{event.id === current?.id && <em>source · {event.source?.path ?? "canonical record"}{event.source?.line ? `:${event.source.line}` : ""}</em>}</span></button>)}</> : <div className="detail-empty"><b>Open a rollout from the collection.</b><small>Enter opens · A adds a lane</small></div>}</section>
   </section>;
 }
 

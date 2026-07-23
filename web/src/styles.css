@@ -108,6 +108,10 @@ kbd { border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius
 .event-shape.error { fill: var(--fail-policy); }
 .event-shape.evidence { fill: none; stroke: var(--ink); stroke-width: 2; }
 .event-shape.context { fill: var(--surface); stroke: var(--ctx); stroke-width: 2; }
+.timeline-event-label line { stroke: var(--muted); stroke-width: 1; }
+.timeline-event-label text { fill: var(--ink-secondary); stroke: var(--surface); stroke-width: 3px; paint-order: stroke fill; font: 9px ui-monospace, monospace; pointer-events: none; }
+.timeline-event-label.selected line { stroke: var(--ctx); stroke-width: 1.5; }
+.timeline-event-label.selected text { fill: var(--ink); font-weight: 700; }
 .context-pressure { fill: color-mix(in srgb, var(--ctx) 35%, transparent); }
 .reward-curve { fill: none; stroke: var(--ink-secondary); stroke-width: 1.5; }
 .playhead { stroke: var(--ink); stroke-width: 2; }
@@ -248,6 +252,9 @@ kbd { border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius
 .guide-copy pre { max-width: 76ch; overflow: auto; padding: 10px; border: 1px solid var(--hairline); background: var(--page); font-size: 11px; }
 .guide-item { max-width: 76ch; display: grid; grid-template-columns: 12px 1fr; gap: 5px; }
 .guide-item > span { color: var(--muted); line-height: 1.55; }
+.guide-link { width: fit-content; display: flex; align-items: center; gap: 7px; margin: 0 0 8px; color: var(--ink); font-size: 12px; text-decoration: none; }
+.guide-link:hover span { text-decoration: underline; }
+.guide-link img, .guide-link svg { width: 15px; height: 15px; flex: 0 0 15px; }
 .guide-actions { margin: 16px 0 0; }
 .guide-actions button { margin: 0 6px 8px 0; padding: 8px 11px; }
 .workspace-settings { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; outline: none; background: var(--surface); }
@@ -264,8 +271,11 @@ kbd { border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius
 .settings-copy pre { overflow: auto; padding: 9px; border: 1px solid var(--hairline); background: var(--page); font-size: 11px; }
 .lane-track.reference-lane > header { border-left: 3px solid var(--ink); }
 .lane-track > header { min-height: 38px; padding: 5px 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--hairline); }
-.lane-track > header span:first-child { min-width: 0; }.lane-track > header b, .lane-track > header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane-track > header > span:first-child { flex: 1 1 120px; min-width: 72px; }.lane-track > header b, .lane-track > header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane-track > header small, .lane-state { color: var(--ink-secondary); font-size: 10px; }.lane-state { font-family: ui-monospace, monospace; white-space: nowrap; }
+.lane-outcome { flex: 0 1 42%; min-width: 0; display: flex; gap: 4px; overflow: hidden; }
+.lane-outcome small { padding: 2px 5px; border: 1px solid var(--hairline); color: var(--ink); font: 9px ui-monospace, monospace; }
+.lane-outcome i { color: var(--ink-secondary); font-style: normal; text-transform: uppercase; }
 .lane-body { min-width: 0; min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .lane-track .shape-strip { height: auto; min-height: 0; flex: 1; padding: 4px 8px; border: 0; }.lane-track .shape-strip svg { min-height: 90px; }
 .lane-track.depth-1.fidelity-0 .shape-strip svg { min-height: 44px; }
@@ -298,7 +308,18 @@ kbd { border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius
 .console-header > div:first-child { min-width: 190px; }.console-header > .editable-metadata, .console-header > .metadata-editor { flex: 1 1 340px; }.workspace-breadcrumb { font-family: ui-monospace, monospace; }
 .console-meta { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--ink-secondary); font-size: 11px; }.console-meta strong { color: var(--ctx); }
 .workspace-console .judge-list { margin-left: 0; }.workspace-console .judge-list button { min-width: 72px; padding: 3px 7px; }
-.workspace-console .detail-region { min-height: 0; flex: 1; width: min(1000px, 96%); overflow: auto; padding: 5px 0 40px; }.workspace-console .moment { padding: 4px 8px; }.workspace-console .moment.selected { padding: 7px 8px; }
+.workspace-console .detail-region { min-height: 0; flex: 1; width: min(1000px, 96%); overflow: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; padding: 5px 0 40px; }.workspace-console .moment { padding: 4px 8px; }.workspace-console .moment.selected { padding: 7px 8px; }
+.verifier-summary { margin: 3px 0 8px; border: 1px solid var(--hairline); background: color-mix(in srgb, var(--ink) 2%, var(--surface)); }
+.verifier-summary > header { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border-bottom: 1px solid var(--hairline); }
+.verifier-summary > header small { color: var(--ink-secondary); }
+.verifier-summary > button { width: 100%; display: grid; grid-template-columns: minmax(90px, .35fr) minmax(0, 1fr); gap: 12px; padding: 9px; border: 0; border-bottom: 1px solid var(--hairline); background: transparent; text-align: left; }
+.verifier-summary > button:last-child { border-bottom: 0; }
+.verifier-summary > button:hover { background: color-mix(in srgb, var(--ctx) 7%, transparent); }
+.verifier-summary span, .verifier-summary span > b, .verifier-summary span > small { display: block; min-width: 0; }
+.verifier-summary span > small { margin-top: 4px; color: var(--ink-secondary); line-height: 1.35; }
+.verifier-summary span > small i { display: inline-block; min-width: 55px; color: var(--muted); font-style: normal; text-transform: uppercase; font-size: 9px; }
+.verifier-result small { color: var(--ink-secondary); font-size: 9px; text-transform: uppercase; }
+.verifier-result strong { margin-top: 3px; font: 600 12px ui-monospace, monospace; }
 .axis-navigator { position: relative; flex: 0 0 34px; min-height: 34px; border-top: 1px solid var(--hairline); background: var(--page); }
 .axis-map { position: absolute; inset: 9px 12px; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, transparent); cursor: crosshair; touch-action: none; }
 .axis-mark { position: absolute; z-index: 1; top: 3px; bottom: 3px; width: 1px; background: var(--muted); }.axis-mark.tool { width: 2px; background: var(--ink-secondary); }.axis-mark.error { width: 3px; background: var(--fail-policy); }.axis-mark.context, .axis-mark.evidence { width: 2px; background: var(--ctx); }.axis-mark.selected { width: 3px; background: var(--good); }

@@ -12,6 +12,10 @@ export const sampleTrajectory: Trajectory = {
   duration_ms: 12843,
   total_reward: 0.25,
   metadata: { environment: "checkout-v4", seed: 88421, sampling_temperature: 0.7 },
+  signals: [
+    { trajectory_id: "traj-checkout-017", event_id: "evt-010", name: "pass", value: false },
+    { trajectory_id: "traj-checkout-017", event_id: "evt-010", name: "reward", value: 0.25 },
+  ],
   events: [
     {
       id: "evt-001", sequence: 1, kind: "message", title: "Task prompt",
@@ -77,6 +81,9 @@ export const sampleTrajectory: Trajectory = {
       summary: "Address changed, but order was not submitted.",
       reward: -0.25,
       content: { label: "partial", passed: false, components: { address_updated: 1, order_submitted: 0 }, feedback: "Refresh order state after mutations before submission." },
+      input: { rubric: "Update the requested address and submit the order. Both conditions must pass." },
+      output: { verdict: "fail", score: 0.5, reason: "The address was updated, but the order was not submitted.", evidence: ["evt-005", "evt-008", "evt-009"] },
+      metadata: { grader: "checkout-task-verifier", verifier_type: "deterministic state verifier", version: "1" },
       timestamp: "2026-07-16T18:42:22.855Z", duration_ms: 8814,
     },
   ],

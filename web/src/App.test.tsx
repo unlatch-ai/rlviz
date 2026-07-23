@@ -238,8 +238,10 @@ describe("instrument viewer", () => {
     expect(screen.getByRole("article", { name: "RLViz guide" })).toHaveTextContent("Inspect AI EvalLog JSON");
     expect(screen.getByRole("article", { name: "RLViz guide" })).toHaveTextContent("brew install TheSnakeFang/tap/rlviz");
     expect(screen.getByRole("button", { name: "Open trace directory" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open-source repository" })).toHaveAttribute("href", "https://github.com/TheSnakeFang/rlviz");
-    expect(screen.getByRole("link", { name: "Updates on X" })).toHaveAttribute("href", "https://x.com/sofangtastic");
+    expect(screen.getByRole("link", { name: "rlviz.dev" })).toHaveAttribute("href", "https://rlviz.dev");
+    expect(screen.getByRole("link", { name: "Repo" })).toHaveAttribute("href", "https://github.com/TheSnakeFang/rlviz");
+    expect(screen.getByRole("link", { name: "Created by Kevin Fang" })).toHaveAttribute("href", "https://kevinfang.tech");
+    expect(document.querySelectorAll(".guide-link img, .guide-link svg")).toHaveLength(3);
   });
 
   it("restores the active rollout after closing Guide or Settings", async () => {
@@ -449,6 +451,8 @@ describe("instrument viewer", () => {
     expect(lane).toHaveAttribute("data-fidelity", "glyphs");
     fireEvent.keyDown(window, { key: "]" });
     expect(lane).toHaveAttribute("data-fidelity", "detail");
+    expect(screen.getByRole("region", { name: "Trajectory shape" })).toHaveTextContent("submit_order");
+    expect(screen.getByRole("region", { name: "Trajectory shape" }).querySelectorAll(".timeline-event-label").length).toBeGreaterThan(0);
     expect(screen.getByRole("region", { name: "Rollout steps" })).toHaveTextContent("submit_order");
     expect(screen.getByRole("region", { name: "Rollout steps" }).querySelectorAll("button")).toHaveLength(sampleTrajectory.events.length);
     fireEvent.keyDown(window, { key: "[" });
@@ -523,6 +527,18 @@ describe("instrument viewer", () => {
     fireEvent.keyDown(window, { key: "j" });
     expect(detail.querySelector(".moment.selected")).toHaveTextContent("Task completion grader");
     expect(screen.getByRole("region", { name: "Active module shortcuts" })).toHaveTextContent("Previous event");
+  });
+
+  it("keeps the full rollout scrollable in Detail and foregrounds verifier design and evidence", async () => {
+    await openRead();
+    const detail = screen.getByRole("region", { name: "Selected moment" });
+    expect(detail).toHaveAttribute("data-event-count", String(sampleTrajectory.events.length));
+    expect(detail.querySelectorAll(".moment")).toHaveLength(sampleTrajectory.events.length);
+    const verifier = screen.getByRole("region", { name: "Verifier and outcome" });
+    expect(verifier).toHaveTextContent("deterministic state verifier");
+    expect(verifier).toHaveTextContent("Update the requested address and submit the order");
+    expect(verifier).toHaveTextContent("evt-005, evt-008, evt-009");
+    expect(screen.getByRole("main", { name: "Read trajectory" })).toHaveTextContent("checkout-task-verifier");
   });
 
   it("removes the empty lane group when the final lane closes", async () => {

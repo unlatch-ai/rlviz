@@ -133,7 +133,7 @@ describe("research view derivation", () => {
     const signals: TrajectorySignal[] = [{ id: "pass", trajectory_id: sampleTrajectory.id, event_id: "evt-010", name: "pass", value: false }];
     const outcome = deriveOutcome(sampleTrajectory, signals);
     expect(outcome).toMatchObject({ status: "failed", pass: { value: false, provenance: "source-native" }, reward: { total: { value: 0.25, source: "trajectory.total_reward" }, eventIds: ["evt-006"] }, errorEventIds: ["evt-009"] });
-    expect(outcome.graders[0]).toMatchObject({ eventId: "evt-010", score: undefined });
+    expect(outcome.graders[0]).toMatchObject({ eventId: "evt-010", verdict: "fail", score: 0.5, evidenceEventIds: ["evt-005", "evt-008", "evt-009"] });
     expect(outcome.finalOutput?.eventId).toBe("evt-007");
     expect(outcome.finalOutputSelection?.provenance).toBe("inferred");
   });

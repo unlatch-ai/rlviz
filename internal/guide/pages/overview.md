@@ -47,6 +47,6 @@ The CLI adds persistent indexing, larger cohorts, private adapters, structured q
 
 ## Links
 
-- [Website](https://rlviz.dev)
-- [Open-source repository](https://github.com/TheSnakeFang/rlviz)
-- [Updates on X](https://x.com/sofangtastic)
+- [rlviz.dev](https://rlviz.dev)
+- [Repo](https://github.com/TheSnakeFang/rlviz)
+- [Created by Kevin Fang](https://kevinfang.tech)
