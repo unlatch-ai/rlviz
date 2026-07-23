@@ -41,9 +41,9 @@ export interface WorkspaceState {
   layout?: SerializedDockview;
 }
 
-// The onboarding layout changed materially: do not restore v3 geometry over
-// the six-module welcome workspace.
-export const workspaceStorageKey = "rlviz.workspace.v5";
+// The onboarding topology changed materially: do not restore older geometry
+// over the full-width Settings row in the welcome workspace.
+export const workspaceStorageKey = "rlviz.workspace.v6";
 const maximumDockLayoutBytes = 256 * 1024;
 const maximumDockPanels = 64;
 const maximumDockNodes = 256;

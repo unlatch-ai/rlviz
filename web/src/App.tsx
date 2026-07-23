@@ -631,6 +631,12 @@ export function App({ initialTrajectory, provider = daemonProvider, setup = { mo
     updateLane(activeLane.id, (lane) => ({ ...lane, fidelity: Math.max(0, Math.min(2, lane.fidelity + delta)) }), false);
   };
   const adjustZoom = (factor: number | "fit", all: boolean) => change((current) => ({ ...current, lanes: current.lanes.map((lane) => { if (!all && lane.id !== current.active) return lane; const data = laneDataRef.current.get(lane.id); if (!data) return lane; const min = data.trajectory.events[0]?.sequence ?? 0, max = data.trajectory.events.at(-1)?.sequence ?? 1, sequence = data.trajectory.events[lane.selected]?.sequence ?? min; return { ...lane, axis: factor === "fit" ? { start: min, end: max } : zoomWindow(lane.axis, sequence, factor, min, max) }; }) }), false);
+  const toggleSettings = () => {
+    const current = workspaceRef.current;
+    const openingWelcomeSettings = !current.settingsOpen && setup.mode === "browser" && current.guideOpen && current.details.length === 0 && current.lanes.length === 2 && current.lanes[0].trajectoryId === "checkout-rollout-01" && current.lanes[1].trajectoryId === "checkout-rollout-02";
+    change((state) => { const settingsOpen = !state.settingsOpen; if (settingsOpen) lastSettingsTarget.current = state.active; return { ...state, settingsOpen, active: settingsOpen ? "settings" : state.active === "settings" ? lastSettingsTarget.current : state.active }; });
+    if (openingWelcomeSettings) arrangeWelcomeLayout();
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -672,7 +678,7 @@ export function App({ initialTrajectory, provider = daemonProvider, setup = { mo
     [commandIds.workspace.ascend]: () => { if (resizeMode) { setResizeMode(false); return; } if (!activeLane) return false; if (effectiveDepth(activeLane) > 1) ascendLane(activeLane.id); else closeLane(); },
     [commandIds.workspace.openDetail]: () => activeLane ? openPinnedDetail() : false,
     [commandIds.workspace.toggleGuide]: () => change((current) => { const guideOpen = !current.guideOpen; if (guideOpen) lastGuideTarget.current = current.active; return { ...current, guideOpen, active: guideOpen ? "guide" : current.active === "guide" ? lastGuideTarget.current : current.active }; }),
-    [commandIds.workspace.toggleSettings]: () => change((current) => { const settingsOpen = !current.settingsOpen; if (settingsOpen) lastSettingsTarget.current = current.active; return { ...current, settingsOpen, active: settingsOpen ? "settings" : current.active === "settings" ? lastSettingsTarget.current : current.active }; }),
+    [commandIds.workspace.toggleSettings]: toggleSettings,
     [commandIds.workspace.jumpBack]: () => jump(-1), [commandIds.workspace.jumpForward]: () => jump(1),
     [commandIds.workspace.resizeMode]: () => { setMoveMode(false); setResizeMode((current) => !current); },
     [commandIds.workspace.moveMode]: () => { setResizeMode(false); setMoveMode((current) => !current); },

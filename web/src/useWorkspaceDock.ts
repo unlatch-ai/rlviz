@@ -246,11 +246,12 @@ export function useWorkspaceDock({
       }
       guide.api.moveTo({ group: collection.api.group, position: "right" });
       lanes[0]!.api.moveTo({ group: guide.api.group, position: "right" });
+      settings.api.moveTo({ group: lanes[0]!.api.group, position: "bottom" });
       detail.api.moveTo({ group: lanes[0]!.api.group, position: "right" });
       lanes[1]!.api.moveTo({ group: lanes[0]!.api.group, position: "bottom" });
-      settings.api.moveTo({ group: detail.api.group, position: "bottom" });
       collection.api.group.api.setSize({ width: Math.max(240, Math.round(api.width * 0.22)) });
       guide.api.group.api.setSize({ width: Math.max(360, Math.round(api.width * 0.34)) });
+      settings.api.group.api.setSize({ height: Math.max(180, Math.round(api.height * 0.34)) });
       setDetailPosition("right");
       requestAnimationFrame(() => flushPersistence(api));
     };

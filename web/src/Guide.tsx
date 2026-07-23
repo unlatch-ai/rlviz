@@ -40,8 +40,14 @@ function blocks(markdown: string): Block[] {
 }
 
 function Inline({ text }: { text: string }) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
-  return <>{parts.map((part, index) => part.startsWith("`") ? <code key={index}>{part.slice(1, -1)}</code> : part.startsWith("**") ? <strong key={index}>{part.slice(2, -2)}</strong> : part)}</>;
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\(https:\/\/[^)]+\))/g);
+  return <>{parts.map((part, index) => {
+    const link = part.match(/^\[([^\]]+)\]\((https:\/\/[^)]+)\)$/);
+    if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>;
+    if (part.startsWith("`")) return <code key={index}>{part.slice(1, -1)}</code>;
+    if (part.startsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    return part;
+  })}</>;
 }
 
 export function Guide({ active, setup, onActivate, onClose }: { active: boolean; setup: ViewerSetup; onActivate: () => void; onClose: () => void }) {
@@ -51,8 +57,8 @@ export function Guide({ active, setup, onActivate, onClose }: { active: boolean;
     <header><span>Guide</span><button onClick={onClose}>close</button></header>
     <div className="guide-layout"><nav aria-label="Guide sections">{pages.map((candidate) => <button key={candidate.id} aria-current={candidate.id === page.id ? "page" : undefined} onClick={() => setPageID(candidate.id)}>{candidate.label}</button>)}</nav>
       <div className="guide-copy">{blocks(page.markdown).map((block, index) => {
-        if (block.kind === "h1") return <div key={index}><h1>{block.text}</h1>{page.id === "overview" && setup.mode === "browser" && <section className="guide-actions" aria-label="Open data"><button className="primary" onClick={setup.onOpenDirectory}>Open trace directory</button><button onClick={setup.onOpenAdapter}>Upload WASM adapter</button><p>A directory must contain exactly one supported <code>.ndjson</code> or <code>.json</code> trace export. Other layouts need a reviewed browser adapter.</p></section>}</div>;
-        if (block.kind === "h2") return <h2 key={index}>{block.text}</h2>;
+        if (block.kind === "h1") return <h1 key={index}>{block.text}</h1>;
+        if (block.kind === "h2") return <div key={index}>{page.id === "overview" && setup.mode === "browser" && block.text === "Please read" && <section className="guide-actions" aria-label="Open data"><button className="primary" onClick={setup.onOpenDirectory}>Open trace directory</button><button onClick={setup.onOpenAdapter}>Upload WASM adapter</button></section>}<h2>{block.text}</h2></div>;
         if (block.kind === "li") return <div className="guide-item" key={index}><span>•</span><p><Inline text={block.text} /></p></div>;
         if (block.kind === "code") return <pre key={index}><code>{block.text}</code></pre>;
         return <p key={index}><Inline text={block.text} /></p>;

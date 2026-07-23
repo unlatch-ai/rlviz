@@ -243,13 +243,13 @@ kbd { border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius
 .guide-copy h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em; }
 .guide-copy h2 { margin: 24px 0 7px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 13px; }
 .guide-copy p { max-width: 72ch; margin: 0 0 8px; color: var(--ink-secondary); font-size: 12px; line-height: 1.55; }
+.guide-copy a { color: var(--ink); text-underline-offset: 2px; }
 .guide-copy code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
 .guide-copy pre { max-width: 76ch; overflow: auto; padding: 10px; border: 1px solid var(--hairline); background: var(--page); font-size: 11px; }
 .guide-item { max-width: 76ch; display: grid; grid-template-columns: 12px 1fr; gap: 5px; }
 .guide-item > span { color: var(--muted); line-height: 1.55; }
-.guide-actions { margin: 0 0 20px; padding: 0 0 18px; border-bottom: 1px solid var(--hairline); }
+.guide-actions { margin: 16px 0 0; }
 .guide-actions button { margin: 0 6px 8px 0; padding: 8px 11px; }
-.guide-actions p { margin-top: 2px; }
 .workspace-settings { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; outline: none; background: var(--surface); }
 .workspace-settings > header { min-height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-bottom: 1px solid var(--hairline); color: var(--ink-secondary); font-size: 11px; }
 .settings-copy { flex: 1; overflow: auto; padding: 14px; }

@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
   // Product onboarding intentionally starts with two rollouts. Shared flow
   // tests seed the older empty workspace explicitly so each action owns the
   // lane count and selection it asserts.
-  await page.addInitScript(() => localStorage.setItem("rlviz.workspace.v5", JSON.stringify({
+  await page.addInitScript(() => localStorage.setItem("rlviz.workspace.v6", JSON.stringify({
     version: 3,
     railExpanded: true,
     railQuery: "",
