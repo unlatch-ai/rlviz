@@ -68,7 +68,7 @@ export function Guide({ active, setup, onActivate, onClose }: { active: boolean;
         if (block.kind === "h2") return <div key={index}>{page.id === "overview" && setup.mode === "browser" && block.text === "Please read" && <section className="guide-actions" aria-label="Open data"><button className="primary" onClick={setup.onOpenDirectory}>Open trace directory</button><button onClick={setup.onOpenAdapter}>Upload WASM adapter</button></section>}<h2>{block.text}</h2></div>;
         if (block.kind === "li") {
           const link = block.text.match(/^\[([^\]]+)\]\((https:\/\/[^)]+)\)$/);
-          if (page.id === "overview" && link && ["https://rlviz.dev", "https://github.com/TheSnakeFang/rlviz", "https://kevinfang.tech"].includes(link[2])) return <GuideLink key={index} label={link[1]} href={link[2]} />;
+          if (page.id === "overview" && link && ["https://rlviz.dev", "https://github.com/TheSnakeFang/rlviz", "https://x.com/sofangtastic"].includes(link[2])) return <GuideLink key={index} label={link[1]} href={link[2]} />;
           return <div className="guide-item" key={index}><span>•</span><p><Inline text={block.text} /></p></div>;
         }
         if (block.kind === "code") return <pre key={index}><code>{block.text}</code></pre>;
