@@ -9,6 +9,14 @@ export const pinnedDetailLaneId = (target: string) => target.startsWith("detail:
 export const panelIdForTarget = (target: string) => target === "rail" ? "collection" : target === "guide" || target === "settings" || target === "detail" ? target : target.startsWith("detail:") ? target : lanePanelId(target);
 export const targetFromPanelId = (id: string) => id === "collection" ? "rail" : id === "guide" || id === "settings" || id === "detail" ? id : id.startsWith("detail:") ? id : laneIdFromPanel(id);
 
+export function defaultWorkspaceModuleSizes(width: number, height: number) {
+  return {
+    collectionWidth: Math.max(220, Math.round(width * 0.18)),
+    guideWidth: Math.max(320, Math.round(width * 0.31)),
+    settingsHeight: Math.max(150, Math.round(height * 0.2)),
+  };
+}
+
 export function focusElementForTarget(target: string, railRef: RefObject<HTMLElement | null>): HTMLElement | null {
   const detailLane = pinnedDetailLaneId(target);
   if (target === "rail") return railRef.current;
@@ -28,21 +36,22 @@ export function addDefaultPanel(
   onDetailPosition: (position: "right" | "bottom") => void,
 ): void {
   const panels = api.panels;
+  const defaultSizes = defaultWorkspaceModuleSizes(api.width, api.height);
   const firstLane = workspace.lanes.map((item) => api.getPanel(lanePanelId(item.id))).find(Boolean);
   const center = firstLane ?? panels.find((item) => item.id !== "collection" && item.id !== "detail") ?? panels[0];
   if (kind === "collection") {
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Collection", params: { kind, label: "collection" }, initialWidth: Math.max(220, api.width * 0.24), ...(center ? { position: { referencePanel: center, direction: "left" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Collection", params: { kind, label: "collection" }, initialWidth: defaultSizes.collectionWidth, ...(center ? { position: { referencePanel: center, direction: "left" as const } } : {}) });
     return;
   }
   if (kind === "guide") {
     const anchor = api.getPanel("collection") ?? center;
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Guide", params: { kind, label: "guide" }, initialWidth: Math.max(320, api.width * 0.34), ...(anchor ? { position: { referencePanel: anchor, direction: "right" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Guide", params: { kind, label: "guide" }, initialWidth: defaultSizes.guideWidth, ...(anchor ? { position: { referencePanel: anchor, direction: "right" as const } } : {}) });
     return;
   }
   if (kind === "settings") {
     const detail = api.getPanel("detail");
     const anchor = detail ?? api.getPanel("guide") ?? api.getPanel("collection") ?? center;
-    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Settings", params: { kind, label: "settings" }, initialWidth: Math.max(280, api.width * 0.28), initialHeight: Math.max(180, api.height * 0.34), ...(anchor ? { position: { referencePanel: anchor, direction: detail ? "below" as const : "right" as const } } : {}) });
+    api.addPanel({ id, component: "workspace", tabComponent: "minimal", renderer: "always", title: "Settings", params: { kind, label: "settings" }, initialWidth: Math.max(280, api.width * 0.28), initialHeight: defaultSizes.settingsHeight, ...(anchor ? { position: { referencePanel: anchor, direction: detail ? "below" as const : "right" as const } } : {}) });
     return;
   }
   if (kind === "detail") {

@@ -44,7 +44,7 @@ concise guide available as a workspace module in the viewer.
   adjustable fidelity and depth, trial grouping, landmarks, and a draggable
   timeline viewport.
 - Arranges rollout modules as rows or columns, pins rollout-specific detail,
-  and shows the active module's shortcuts in the Guide.
+  and keeps the active module's shortcuts visible in the bottom keybar.
 - Compares trajectories with deterministic behavioral alignment and a first
   meaningful divergence.
 - Runs locally: the CLI binds to loopback, makes no outbound requests during
